@@ -132,3 +132,46 @@ DEFAULT_TIMEZONE=Asia/Shanghai
 ```
 
 Keep `.env` private because it contains API keys.
+
+## Deploy Local Changes To Server
+
+After editing files locally in `G:\labAgent\labAgent_Server`, commit your work and deploy from Windows PowerShell:
+
+```powershell
+cd G:\labAgent\labAgent_Server
+git status
+git add .
+git commit -m "Describe the change"
+.\deploy_to_server.ps1 -RestartWeb -RunSmokeTest
+```
+
+The deploy script uploads code to:
+
+```text
+/data/zmr/projects/labAgent_Server
+```
+
+It does not upload or overwrite server runtime/private data:
+
+```text
+.env
+reports/
+logs/
+.git/
+.venv/
+labagent/
+__pycache__/
+*.pyc
+```
+
+Useful options:
+
+```powershell
+.\deploy_to_server.ps1
+.\deploy_to_server.ps1 -RestartWeb
+.\deploy_to_server.ps1 -InstallDeps -RestartWeb
+.\deploy_to_server.ps1 -RunSmokeTest -RestartWeb
+.\deploy_to_server.ps1 -AllowDirty -RestartWeb
+```
+
+Use `-InstallDeps` after changing `requirements.txt`. Use `-AllowDirty` only when you intentionally want to deploy uncommitted local files.
