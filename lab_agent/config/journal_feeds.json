@@ -1,0 +1,76 @@
+{
+  "journals": [
+    {
+      "name": "Nature",
+      "slug": "Nature",
+      "feed_url": "https://www.nature.com/nature.rss",
+      "reports_dir": "reports/Nature_reports"
+    },
+    {
+      "name": "Nature Physics",
+      "slug": "Nature_Physics",
+      "feed_url": "https://www.nature.com/nphys.rss",
+      "reports_dir": "reports/Nature_Physics_reports"
+    },
+    {
+      "name": "Nature Materials",
+      "slug": "Nature_Materials",
+      "feed_url": "https://www.nature.com/nmat.rss",
+      "reports_dir": "reports/Nature_Materials_reports"
+    },
+    {
+      "name": "Nature Communications",
+      "slug": "Nature_Communications",
+      "feed_url": "https://www.nature.com/ncomms.rss",
+      "reports_dir": "reports/Nature_Communications_reports"
+    },
+    {
+      "name": "Science",
+      "slug": "Science",
+      "feed_url": "https://www.science.org/action/showFeed?feed=rss&jc=science&type=etoc",
+      "reports_dir": "reports/Science_reports"
+    },
+    {
+      "name": "Physical Review Letters",
+      "slug": "Physical_Review_Letters",
+      "feed_url": "https://feeds.aps.org/rss/recent/prl.xml",
+      "reports_dir": "reports/Physical_Review_Letters_reports"
+    },
+    {
+      "name": "Physical Review B",
+      "slug": "Physical_Review_B",
+      "feed_url": "https://feeds.aps.org/rss/recent/prb.xml",
+      "reports_dir": "reports/Physical_Review_B_reports"
+    },
+    {
+      "name": "Physical Review X",
+      "slug": "Physical_Review_X",
+      "feed_url": "https://feeds.aps.org/rss/recent/prx.xml",
+      "reports_dir": "reports/Physical_Review_X_reports"
+    },
+    {
+      "name": "PNAS",
+      "slug": "PNAS",
+      "feed_url": "https://www.pnas.org/action/showFeed?type=etoc&feed=rss&jc=PNAS",
+      "reports_dir": "reports/PNAS_reports"
+    },
+    {
+      "name": "Nature Nanotechnology",
+      "slug": "Nature_Nanotechnology",
+      "feed_url": "https://www.nature.com/nnano.rss",
+      "reports_dir": "reports/Nature_Nanotechnology_reports"
+    },
+    {
+      "name": "Science Advances",
+      "slug": "Science_Advances",
+      "feed_url": "https://www.science.org/action/showFeed?feed=rss&jc=sciadv&type=etoc",
+      "reports_dir": "reports/Science_Advances_reports"
+    },
+    {
+      "name": "Reviews of Modern Physics",
+      "slug": "Reviews_of_Modern_Physics",
+      "feed_url": "https://feeds.aps.org/rss/recent/rmp.xml",
+      "reports_dir": "reports/Reviews_of_Modern_Physics_reports"
+    }
+  ]
+}

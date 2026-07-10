@@ -1,0 +1,28 @@
+{
+  "arxivFilterModel": {
+    "name": "DeepSeek-V4-Flash",
+    "provider": "deepseek",
+    "api_type": "chat_completions",
+    "description": "Model used for scoring and filtering arXiv papers",
+    "purpose": "paper_scoring"
+  },
+  "chatModel": {
+    "name": "DeepSeek-V4-Pro",
+    "provider": "deepseek",
+    "api_type": "chat_completions",
+    "description": "Model used for chatting about ArXiv papers",
+    "purpose": "chat_conversation",
+    "maxTokens": 50000,
+    "temperature": 0.3
+  },
+  "modelSettings": {
+    "rateLimiting": {
+      "requestsPerMinute": 60,
+      "tokensPerMinute": 90000
+    },
+    "retrySettings": {
+      "maxRetries": 3,
+      "backoffMultiplier": 2
+    }
+  }
+}

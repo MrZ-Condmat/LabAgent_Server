@@ -1,0 +1,122 @@
+# Interest Keywords for ArXiv Paper Filtering
+# Format: one keyword/phrase per line
+# Lines starting with # are comments
+
+# 2D Materials & Graphene
+2D materials
+two-dimensional materials
+graphene
+monolayer graphene
+bilayer graphene
+twisted graphene
+magic angle graphene
+rhombohedral multilayer graphene
+graphene nanoribbon
+graphene nanoribbons
+
+# Cuprate Superconductor
+cuprate
+cuprate superconductors
+high-Tc superconductors
+unconventional superconductivity
+electron-doped cuprate
+n-type cuprates
+T' cuprate
+T-prime cuprate
+infinite-layer cuprate
+superconducting dome
+pseudogap
+strange metal
+Fermi surface reconstruction
+charge density wave
+CDW
+spin density wave
+SDW
+antiferromagnetism
+Mott insulator
+charge-transfer insulator
+Hubbard model
+t-J model
+d-wave superconductivity
+pairing symmetry
+superconducting gap
+
+# Nickelate Superconductor
+nickelate
+nickelate superconductors
+infinite-layer nickelates
+Ruddlesden-Popper nickelates
+bilayer nickelate
+trilayer nickelate
+superconducting nickelate
+self-doping
+multi-orbital physics
+nickelate thin film
+topotactic reduction
+oxygen vacancy
+hydrogen intercalation
+nickelate heterostructure
+
+# Scanning Tunneling Microscopy (STM)
+scanning tunneling microscopy
+STM
+scanning tunneling spectroscopy
+STS
+quasiparticle interference
+QPI
+local density of states
+LDOS
+tunneling conductance
+
+# Scanning Transmission Electron Microscopy (STEM)
+scanning transmission electron microscopy
+STEM
+transmission electron microscopy
+TEM
+high-angle annular dark-field
+HAADF
+HAADF-STEM
+electron energy loss spectroscopy
+EELS
+STEM-EELS
+4D-STEM
+four-dimensional STEM
+nanobeam electron diffraction
+NBED
+strain mapping
+oxygen vacancy
+ptychography
+multislice electron ptychography
+electron ptychography
+4D-STEM ptychography
+
+# Transition Metal Dichalcogenides
+transition metal dichalcogenides
+TMDs
+TMD
+molybdenum disulfide
+MoS2
+tungsten disulfide
+WS2
+tungsten diselenide
+WSe2
+molybdenum diselenide
+MoSe2
+molybdenum ditelluride
+MoTe2
+
+# Quantum Properties
+quantum dots
+quantum wells
+quantum anomalous Hall effect
+QAHE
+fractional quantum anomalous Hall effect
+FQAHE
+Chern number
+chiral edge state
+MnBi2Te4
+axion insulator
+Berry curvature
+topological insulator
+topological superconductor
+
