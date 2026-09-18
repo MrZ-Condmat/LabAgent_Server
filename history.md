@@ -668,3 +668,11 @@
 - Removed frontend metric cards for `Journals`, `RSS Entries`, and `Today/Yesterday` from expanded Journal Daily reports.
 - Kept underlying JSON/HTML report data unchanged; this is display-only.
 - Verified `lab_agent/web/app.py` compiles successfully and confirmed in browser that the removed metric labels no longer appear in expanded Journal Summary reports.
+
+## 2026-09-18 服务器日报定时任务调整
+
+- 用户反馈服务器上原有的 `0 8 * * *` 任务实际在北京时间 16:00 触发，与 Cron 按 UTC 08:00 执行一致。
+- 更新 `SERVER_README.md` 中的两个 Cron 示例，将触发时间改为 `0 2 * * *`，对应北京时间每天 10:00；任务命令和日报生成逻辑未修改，服务器系统时间未修改。
+- 本地说明修改已提交为 `edea3f2`（`Document 10 AM China time cron schedule`）。本项目使用 `deploy_to_server.ps1` 通过 SCP/SSH 部署项目文件；Git 提交或项目文件同步不会自动修改服务器的 crontab。
+- 用户已在服务器上修改 `zmr` 的 crontab，并通过 `crontab -l` 确认任务为 `0 2 * * * CONDA_EXE=/home/zmr/miniforge3/bin/conda /data/zmr/projects/labAgent_Server/scripts/run_daily_report.sh`。
+- 定时配置已核对；北京时间 10:00 的实际运行结果仍需在下一次触发后查看 `logs/daily_report.log` 确认。
