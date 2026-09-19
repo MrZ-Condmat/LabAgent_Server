@@ -68,16 +68,16 @@ Logs are appended to:
 
 ## Cron Example
 
-Run every day at 10:00 China time when the server's cron uses UTC (02:00 UTC):
+Run every day at 10:00 China time. The server and Cron use `Asia/Shanghai`:
 
 ```cron
-0 2 * * * /usr/bin/bash /data/zmr/projects/labAgent_Server/scripts/run_daily_report.sh
+0 10 * * * /usr/bin/bash /data/zmr/projects/labAgent_Server/scripts/run_daily_report.sh
 ```
 
 If cron cannot find conda, use `CONDA_EXE` inline:
 
 ```cron
-0 2 * * * CONDA_EXE=/home/USER/miniconda3/bin/conda /usr/bin/bash /data/zmr/projects/labAgent_Server/scripts/run_daily_report.sh
+0 10 * * * CONDA_EXE=/home/USER/miniconda3/bin/conda /usr/bin/bash /data/zmr/projects/labAgent_Server/scripts/run_daily_report.sh
 ```
 
 The script sets `TZ=Asia/Shanghai`; code also reads `DEFAULT_TIMEZONE=Asia/Shanghai` from `.env`.

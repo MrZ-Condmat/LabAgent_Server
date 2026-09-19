@@ -684,3 +684,10 @@
 - 修改 `deploy_to_server.ps1`，服务器解压部署包后自动为 `scripts/*.sh` 恢复执行权限，避免 Windows 部署包覆盖脚本后再次发生同类问题。
 - 更新 `SERVER_README.md` 的 Cron 示例，改为通过 `/usr/bin/bash` 调用日报脚本，使定时启动不依赖脚本自身的执行位。
 - 服务器上仍需执行一次 `chmod +x scripts/run_daily_report.sh`，并将现有 crontab 命令改为通过 `/usr/bin/bash` 调用；下一次北京时间 10:00 后再核对运行日志。
+
+### 时区核实与最终 Cron 配置
+
+- 后续检查确认服务器的 `timedatectl`、`/etc/timezone` 和 `/etc/localtime` 均为 `Asia/Shanghai`，Cron 服务没有单独的 `TZ` 环境变量。
+- 历史日志中的 16:00 CST 启动记录说明 Cron 进程此前可能保留了旧的 UTC 时区状态；服务器已重启 `cron` 服务，使其重新读取当前上海时区。
+- 最终将 `zmr` 用户的任务设置为 `0 10 * * *`，即按服务器本地时间每天 10:00 执行。检查 `/etc/crontab`、`/etc/cron.d`、用户 crontab 和 systemd timers 后，只发现这一条 LabAgent 日报任务，没有重复调度项。
+- 服务器脚本权限已恢复为 `775`，Cron 服务状态为 `active`。下一次触发后仍需通过 `logs/daily_report.log` 核对实际运行时间。
