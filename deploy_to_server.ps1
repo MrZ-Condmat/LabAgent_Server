@@ -101,6 +101,7 @@ try {
         "tar -xzf `"`$ARCHIVE`" -C `"`$REMOTE_ROOT`"",
         "cd `"`$REMOTE_ROOT`"",
         "mkdir -p logs",
+        "find scripts -maxdepth 1 -type f -name '*.sh' -exec chmod +x {} +",
         "echo `"Deployed archive to `$REMOTE_ROOT`"",
         "echo `"Note: .env, reports, logs, virtualenvs, and Git metadata were not overwritten by the archive.`""
     )

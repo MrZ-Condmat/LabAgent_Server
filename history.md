@@ -676,3 +676,11 @@
 - 本地说明修改已提交为 `edea3f2`（`Document 10 AM China time cron schedule`）。本项目使用 `deploy_to_server.ps1` 通过 SCP/SSH 部署项目文件；Git 提交或项目文件同步不会自动修改服务器的 crontab。
 - 用户已在服务器上修改 `zmr` 的 crontab，并通过 `crontab -l` 确认任务为 `0 2 * * * CONDA_EXE=/home/zmr/miniforge3/bin/conda /data/zmr/projects/labAgent_Server/scripts/run_daily_report.sh`。
 - 定时配置已核对；北京时间 10:00 的实际运行结果仍需在下一次触发后查看 `logs/daily_report.log` 确认。
+
+## 2026-09-19 服务器定时任务未启动问题修复
+
+- 日志确认 2026-09-19 北京时间 10:00 没有产生新的任务启动记录；此前最后一次记录为 2026-09-18 16:00:01 CST。
+- 服务器检查确认 `scripts/run_daily_report.sh` 权限为 `664`（`-rw-rw-r--`），没有执行权限，而 Cron 原配置直接执行该脚本；`cron` 服务状态为 `active`。
+- 修改 `deploy_to_server.ps1`，服务器解压部署包后自动为 `scripts/*.sh` 恢复执行权限，避免 Windows 部署包覆盖脚本后再次发生同类问题。
+- 更新 `SERVER_README.md` 的 Cron 示例，改为通过 `/usr/bin/bash` 调用日报脚本，使定时启动不依赖脚本自身的执行位。
+- 服务器上仍需执行一次 `chmod +x scripts/run_daily_report.sh`，并将现有 crontab 命令改为通过 `/usr/bin/bash` 调用；下一次北京时间 10:00 后再核对运行日志。

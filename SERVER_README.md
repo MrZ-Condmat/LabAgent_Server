@@ -71,13 +71,13 @@ Logs are appended to:
 Run every day at 10:00 China time when the server's cron uses UTC (02:00 UTC):
 
 ```cron
-0 2 * * * /data/zmr/projects/labAgent_Server/scripts/run_daily_report.sh
+0 2 * * * /usr/bin/bash /data/zmr/projects/labAgent_Server/scripts/run_daily_report.sh
 ```
 
 If cron cannot find conda, use `CONDA_EXE` inline:
 
 ```cron
-0 2 * * * CONDA_EXE=/home/USER/miniconda3/bin/conda /data/zmr/projects/labAgent_Server/scripts/run_daily_report.sh
+0 2 * * * CONDA_EXE=/home/USER/miniconda3/bin/conda /usr/bin/bash /data/zmr/projects/labAgent_Server/scripts/run_daily_report.sh
 ```
 
 The script sets `TZ=Asia/Shanghai`; code also reads `DEFAULT_TIMEZONE=Asia/Shanghai` from `.env`.
@@ -175,3 +175,5 @@ Useful options:
 ```
 
 Use `-InstallDeps` after changing `requirements.txt`. Use `-AllowDirty` only when you intentionally want to deploy uncommitted local files.
+
+The deployment script restores execute permission on `scripts/*.sh` after extraction. The Cron examples also invoke the daily script through `/usr/bin/bash`, so a missing execute bit cannot prevent the scheduled command from starting.
