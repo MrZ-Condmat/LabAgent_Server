@@ -727,3 +727,11 @@
 - 新增首个实际 Alembic migration，仅创建 `users` 表；邮箱和外部身份标识的唯一约束会在 PostgreSQL 中提供对应唯一索引，因此未增加重复索引。
 - Alembic 环境显式加载 ORM models，支持后续 autogenerate 识别 metadata；没有连接真实数据库，也未接入 Streamlit、Authentication、Agent、Chat 或日报业务，尚未创建 Conversation / Message。
 - 新增模型和 migration 的离线测试，覆盖字段、约束、默认值、upgrade/downgrade 范围及 PostgreSQL offline SQL 输出。
+
+## 2026-09-21 多用户架构改造 Task 5：Conversation 与 Message 数据模型
+
+- 新增 `Conversation` 和 `Message` SQLAlchemy ORM 模型，建立 `User -> Conversation -> Message` 的私有数据 ownership 关系及双向 typed relationships。
+- Conversation 和 Message 外键均使用 `ON DELETE CASCADE`；消息通过 conversation 推导用户归属，不重复保存 `user_id`。
+- Conversation context 和 Message metadata 使用 PostgreSQL JSONB；消息增加 conversation 内唯一的 `sequence_number`，用于稳定恢复发送顺序。
+- 新增 `0002_conversations_messages` migration，只创建 `conversations`、`messages` 及必要约束和索引，不修改 `users` 表。
+- 新增完全离线的模型、relationship、migration 和 SQL 测试；尚未迁移现有 Chat，未实现 repository/service，也未连接真实 PostgreSQL。

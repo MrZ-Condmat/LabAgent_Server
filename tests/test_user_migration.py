@@ -72,7 +72,7 @@ def test_user_migration_upgrade_and_downgrade_are_scoped_to_users():
     assert calls[1] == ("drop", "users")
 
 
-def test_offline_upgrade_renders_only_user_business_table(monkeypatch):
+def test_offline_upgrade_to_first_revision_renders_only_user_table(monkeypatch):
     monkeypatch.setenv(
         "DATABASE_URL",
         "postgresql+psycopg://migration:placeholder@localhost:5432/labagent",
@@ -80,7 +80,7 @@ def test_offline_upgrade_renders_only_user_business_table(monkeypatch):
     config = AlembicConfig("alembic.ini")
     config.output_buffer = StringIO()
 
-    command.upgrade(config, "head", sql=True)
+    command.upgrade(config, "0001_create_users", sql=True)
     sql = config.output_buffer.getvalue().lower()
 
     assert "create table users" in sql

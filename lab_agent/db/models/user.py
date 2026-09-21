@@ -3,6 +3,7 @@
 import uuid
 from datetime import datetime, timezone
 from enum import Enum
+from typing import TYPE_CHECKING
 
 from sqlalchemy import (
     Boolean,
@@ -15,9 +16,12 @@ from sqlalchemy import (
     func,
     true,
 )
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from lab_agent.db.base import Base
+
+if TYPE_CHECKING:
+    from .conversation import Conversation
 
 
 def utc_now() -> datetime:
@@ -86,4 +90,9 @@ class User(Base):
     last_login_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
         nullable=True,
+    )
+    conversations: Mapped[list["Conversation"]] = relationship(
+        back_populates="user",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
     )
