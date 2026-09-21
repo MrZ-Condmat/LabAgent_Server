@@ -1,4 +1,5 @@
 from unittest.mock import Mock
+from datetime import datetime, timezone
 from uuid import uuid4
 
 from sqlalchemy.dialects import postgresql
@@ -45,6 +46,39 @@ def test_user_add_flushes_without_owning_the_transaction():
     assert repository.add(user) is user
 
     session.add.assert_called_once_with(user)
+    session.flush.assert_called_once_with()
+    session.commit.assert_not_called()
+    session.rollback.assert_not_called()
+    session.close.assert_not_called()
+
+
+def test_update_login_identity_changes_only_allowed_fields_and_flushes():
+    session = Mock(spec=Session)
+    repository = UserRepository(session)
+    user = User(
+        email="old@example.com",
+        display_name="Old Name",
+        external_subject=None,
+        role="admin",
+        is_active=True,
+    )
+    login_time = datetime.now(timezone.utc)
+
+    result = repository.update_login_identity(
+        user,
+        external_subject="oidc-subject",
+        email="new@example.com",
+        display_name="New Name",
+        last_login_at=login_time,
+    )
+
+    assert result is user
+    assert user.external_subject == "oidc-subject"
+    assert user.email == "new@example.com"
+    assert user.display_name == "New Name"
+    assert user.last_login_at is login_time
+    assert user.role == "admin"
+    assert user.is_active is True
     session.flush.assert_called_once_with()
     session.commit.assert_not_called()
     session.rollback.assert_not_called()

@@ -750,3 +750,10 @@
 - 后续在用户手动启动 Docker Desktop 后，通过 disposable PostgreSQL 16 容器完成首次真实验证：Alembic upgrade/downgrade/upgrade、schema/类型/约束、ownership、cascade、archive、事务及消息顺序测试共 12 项全部通过。
 - 5 个独立 Session 并发写入同一 Conversation 共 10 条消息，最终 sequence number 为 1–10；没有 duplicate、IntegrityError、deadlock 或消息丢失。测试结束时三张业务表均为空，并关闭临时容器。
 - 原有 47 项离线测试继续通过；pytest 默认排除会直接调用真实 LLM 的 `tests/test_deepseek.py` smoke 脚本。尚未接入 Authentication、Streamlit 或现有 Chat。
+
+## 2026-09-21 多用户架构改造 Task 8：Authentication abstraction
+
+- 新增不可变、provider-neutral 的 `IdentityClaims` 和 `CurrentUser`，应用身份不携带 ORM instance、token、密码或 provider-specific claims。
+- 新增 `AuthenticationService`：优先按稳定 subject 查找，再以规范化 email 绑定预建用户；subject/email 冲突、非法 identity、未知用户和 inactive 用户均使用明确且不泄漏账户信息的认证异常。
+- 未知用户默认拒绝；只有显式启用 `allow_auto_provision` 时才创建 `user` 角色的 active 用户，provider identity 不能修改本地 role 或 active 状态。
+- `UserRepository` 增加仅同步 subject/email/display name/last login 的明确方法，Service 和 Repository 均不管理 commit/rollback/Session；尚未接入真实 OIDC、Streamlit 登录或 RBAC。
