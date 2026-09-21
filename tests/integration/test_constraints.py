@@ -69,12 +69,15 @@ def test_user_unique_constraints_and_nullable_external_subject(
     with integration_engine.begin() as connection:
         connection.execute(
             text(
-                "INSERT INTO users (id, external_subject, email, display_name) "
-                "VALUES (:id, :subject, :email, :name)"
+                "INSERT INTO users "
+                "(id, external_subject, tenant_id, external_object_id, email, display_name) "
+                "VALUES (:id, :subject, :tenant_id, :object_id, :email, :name)"
             ),
             {
                 "id": uuid4(),
                 "subject": "shared-subject",
+                "tenant_id": uuid4(),
+                "object_id": uuid4(),
                 "email": "unique@example.com",
                 "name": "First",
             },
@@ -102,5 +105,56 @@ def test_user_unique_constraints_and_nullable_external_subject(
             [
                 {"id": uuid4(), "email": "null-one@example.com", "name": "One"},
                 {"id": uuid4(), "email": "null-two@example.com", "name": "Two"},
+            ],
+        )
+
+
+def test_tenant_object_composite_unique_and_nullable_pairs(
+    integration_engine,
+    clean_business_tables,
+):
+    del clean_business_tables
+    tenant_id = uuid4()
+    object_id = uuid4()
+    with integration_engine.begin() as connection:
+        connection.execute(
+            text(
+                "INSERT INTO users "
+                "(id, tenant_id, external_object_id, email, display_name) "
+                "VALUES (:id, :tenant_id, :object_id, :email, :name)"
+            ),
+            {
+                "id": uuid4(),
+                "tenant_id": tenant_id,
+                "object_id": object_id,
+                "email": "entra-one@example.com",
+                "name": "Entra One",
+            },
+        )
+
+    assert_insert_fails(
+        integration_engine,
+        "INSERT INTO users "
+        "(id, tenant_id, external_object_id, email, display_name) "
+        "VALUES (:id, :tenant_id, :object_id, :email, :name)",
+        {
+            "id": uuid4(),
+            "tenant_id": tenant_id,
+            "object_id": object_id,
+            "email": "entra-two@example.com",
+            "name": "Entra Two",
+        },
+    )
+
+    with integration_engine.begin() as connection:
+        connection.execute(
+            text(
+                "INSERT INTO users "
+                "(id, tenant_id, external_object_id, email, display_name) "
+                "VALUES (:id, NULL, NULL, :email, :name)"
+            ),
+            [
+                {"id": uuid4(), "email": "pair-null-one@example.com", "name": "One"},
+                {"id": uuid4(), "email": "pair-null-two@example.com", "name": "Two"},
             ],
         )

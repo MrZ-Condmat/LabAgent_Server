@@ -26,6 +26,18 @@ class UserRepository:
             select(User).where(User.external_subject == external_subject)
         )
 
+    def get_by_tenant_object(
+        self,
+        tenant_id: UUID,
+        external_object_id: UUID,
+    ) -> User | None:
+        return self.session.scalar(
+            select(User).where(
+                User.tenant_id == tenant_id,
+                User.external_object_id == external_object_id,
+            )
+        )
+
     def add(self, user: User) -> User:
         self.session.add(user)
         self.session.flush()
@@ -36,12 +48,16 @@ class UserRepository:
         user: User,
         *,
         external_subject: str,
+        tenant_id: UUID | None,
+        external_object_id: UUID | None,
         email: str,
         display_name: str,
         last_login_at: datetime,
     ) -> User:
         """Persist identity fields that a successful login is allowed to change."""
         user.external_subject = external_subject
+        user.tenant_id = tenant_id
+        user.external_object_id = external_object_id
         user.email = email
         user.display_name = display_name
         user.last_login_at = last_login_at

@@ -15,6 +15,8 @@ class IdentityClaims:
     """Identity fields already extracted by a trusted provider adapter."""
 
     subject: str
+    tenant_id: UUID | None
+    object_id: UUID | None
     email: str
     display_name: str
 
@@ -25,6 +27,8 @@ class CurrentUser:
 
     id: UUID
     external_subject: str | None
+    tenant_id: UUID | None
+    external_object_id: UUID | None
     email: str
     display_name: str
     role: UserRole
@@ -35,6 +39,8 @@ class CurrentUser:
         return cls(
             id=user.id,
             external_subject=user.external_subject,
+            tenant_id=user.tenant_id,
+            external_object_id=user.external_object_id,
             email=user.email,
             display_name=user.display_name,
             role=user.role,

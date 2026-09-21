@@ -29,7 +29,7 @@ def test_upgrade_downgrade_upgrade_cycle_and_revision(
         revision = connection.execute(
             text("SELECT version_num FROM alembic_version")
         ).scalar_one()
-    assert revision == "0002_conversations_messages"
+    assert revision == "0003_entra_identity"
 
 
 def test_reflected_postgresql_column_types(integration_engine):
@@ -39,6 +39,10 @@ def test_reflected_postgresql_column_types(integration_engine):
     messages = columns_by_name(inspector, "messages")
 
     assert isinstance(users["id"]["type"], UUID)
+    assert isinstance(users["tenant_id"]["type"], UUID)
+    assert isinstance(users["external_object_id"]["type"], UUID)
+    assert users["tenant_id"]["nullable"] is True
+    assert users["external_object_id"]["nullable"] is True
     assert isinstance(users["email"]["type"], String)
     assert isinstance(users["is_active"]["type"], Boolean)
     assert isinstance(users["created_at"]["type"], DateTime)

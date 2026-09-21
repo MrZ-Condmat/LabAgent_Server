@@ -37,6 +37,15 @@ def test_user_lookup_queries_use_the_requested_identity_field():
     by_subject_sql = compile_postgresql(session.scalar.call_args.args[0])
     assert "users.external_subject = 'oidc-subject'" in by_subject_sql
 
+    tenant_id = uuid4()
+    object_id = uuid4()
+    assert repository.get_by_tenant_object(tenant_id, object_id) is None
+    by_tenant_object_sql = compile_postgresql(session.scalar.call_args.args[0])
+    assert "users.tenant_id" in by_tenant_object_sql
+    assert "users.external_object_id" in by_tenant_object_sql
+    assert str(tenant_id) in by_tenant_object_sql
+    assert str(object_id) in by_tenant_object_sql
+
 
 def test_user_add_flushes_without_owning_the_transaction():
     session = Mock(spec=Session)
@@ -67,6 +76,8 @@ def test_update_login_identity_changes_only_allowed_fields_and_flushes():
     result = repository.update_login_identity(
         user,
         external_subject="oidc-subject",
+        tenant_id=uuid4(),
+        external_object_id=uuid4(),
         email="new@example.com",
         display_name="New Name",
         last_login_at=login_time,
@@ -74,6 +85,8 @@ def test_update_login_identity_changes_only_allowed_fields_and_flushes():
 
     assert result is user
     assert user.external_subject == "oidc-subject"
+    assert user.tenant_id is not None
+    assert user.external_object_id is not None
     assert user.email == "new@example.com"
     assert user.display_name == "New Name"
     assert user.last_login_at is login_time

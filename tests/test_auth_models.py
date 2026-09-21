@@ -8,9 +8,13 @@ from lab_agent.db.models import User, UserRole
 
 
 def test_current_user_is_immutable_and_separate_from_orm_user():
+    tenant_id = uuid4()
+    object_id = uuid4()
     user = User(
         id=uuid4(),
         external_subject="provider-subject",
+        tenant_id=tenant_id,
+        external_object_id=object_id,
         email="user@example.com",
         display_name="User",
         role=UserRole.USER,
@@ -21,6 +25,8 @@ def test_current_user_is_immutable_and_separate_from_orm_user():
 
     assert current_user.id == user.id
     assert current_user.external_subject == "provider-subject"
+    assert current_user.tenant_id == tenant_id
+    assert current_user.external_object_id == object_id
     assert current_user.email == "user@example.com"
     assert current_user.display_name == "User"
     assert current_user.role is UserRole.USER
@@ -32,13 +38,19 @@ def test_current_user_is_immutable_and_separate_from_orm_user():
 
 
 def test_identity_claims_are_provider_neutral_and_immutable():
+    tenant_id = uuid4()
+    object_id = uuid4()
     claims = IdentityClaims(
         subject="subject",
+        tenant_id=tenant_id,
+        object_id=object_id,
         email="user@example.com",
         display_name="User",
     )
 
     assert claims.subject == "subject"
+    assert claims.tenant_id == tenant_id
+    assert claims.object_id == object_id
     assert claims.email == "user@example.com"
     assert claims.display_name == "User"
     assert not hasattr(claims, "role")

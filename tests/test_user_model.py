@@ -11,9 +11,11 @@ def test_user_model_registers_expected_table_and_columns():
 
     assert Base.metadata.tables["users"] is table
     assert list(table.columns) == [
-        table.c.id,
-        table.c.external_subject,
-        table.c.email,
+            table.c.id,
+            table.c.external_subject,
+            table.c.tenant_id,
+            table.c.external_object_id,
+            table.c.email,
         table.c.display_name,
         table.c.role,
         table.c.is_active,
@@ -27,6 +29,12 @@ def test_user_model_registers_expected_table_and_columns():
     assert isinstance(table.c.id.default.arg(None), uuid.UUID)
     assert table.c.external_subject.nullable is True
     assert table.c.external_subject.type.length == 255
+    assert isinstance(table.c.tenant_id.type, Uuid)
+    assert table.c.tenant_id.type.as_uuid is True
+    assert table.c.tenant_id.nullable is True
+    assert isinstance(table.c.external_object_id.type, Uuid)
+    assert table.c.external_object_id.type.as_uuid is True
+    assert table.c.external_object_id.nullable is True
     assert table.c.email.nullable is False
     assert table.c.email.type.length == 320
     assert table.c.display_name.nullable is False
@@ -47,7 +55,21 @@ def test_user_model_enforces_identity_and_role_constraints():
         if isinstance(constraint, CheckConstraint)
     }
 
-    assert unique_names == {"uq_users_email", "uq_users_external_subject"}
+    assert unique_names == {
+        "uq_users_email",
+        "uq_users_external_subject",
+        "uq_users_tenant_object",
+    }
+    tenant_object_unique = next(
+        constraint
+        for constraint in table.constraints
+        if isinstance(constraint, UniqueConstraint)
+        and constraint.name == "uq_users_tenant_object"
+    )
+    assert [column.name for column in tenant_object_unique.columns] == [
+        "tenant_id",
+        "external_object_id",
+    ]
     assert checks == {"ck_users_role": "role IN ('admin', 'user')"}
     assert isinstance(table.c.role.type, Enum)
     assert table.c.role.type.native_enum is False

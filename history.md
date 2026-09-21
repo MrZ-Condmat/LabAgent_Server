@@ -757,3 +757,11 @@
 - 新增 `AuthenticationService`：优先按稳定 subject 查找，再以规范化 email 绑定预建用户；subject/email 冲突、非法 identity、未知用户和 inactive 用户均使用明确且不泄漏账户信息的认证异常。
 - 未知用户默认拒绝；只有显式启用 `allow_auto_provision` 时才创建 `user` 角色的 active 用户，provider identity 不能修改本地 role 或 active 状态。
 - `UserRepository` 增加仅同步 subject/email/display name/last login 的明确方法，Service 和 Repository 均不管理 commit/rollback/Session；尚未接入真实 OIDC、Streamlit 登录或 RBAC。
+
+## 2026-09-21 多用户架构改造 Task 9：Microsoft Entra identity fields
+
+- User 增加 nullable PostgreSQL UUID 字段 `tenant_id` 和 `external_object_id`，并通过 `(tenant_id, external_object_id)` 复合唯一约束表达 Entra tenant/object identity；现有 `external_subject` 继续保存 OIDC `sub`。
+- 新增 `0003_entra_identity` migration，仅为 users 增加两个字段和复合唯一约束；支持已有用户及预建未绑定用户，不写入 fake UUID 或默认值。
+- 扩展 `IdentityClaims`、`CurrentUser`、`UserRepository` 和 `AuthenticationService`，按 subject、tenant/object、email 三路查找并进行 fail-closed 冲突检查；tenant/object 命中但 subject 改变时拒绝静默覆盖。
+- PostgreSQL 16 上 13 项 integration tests 全部通过，包括 migration round-trip、真实 UUID/复合唯一约束，以及原有 ownership、cascade、transaction 和 5 Session/10 Message 并发顺序测试；74 项离线测试通过。
+- 尚未连接 Microsoft OIDC、Graph、Streamlit 登录或 tenant/domain allowlist，未添加任何 client secret。

@@ -43,6 +43,11 @@ class User(Base):
     __table_args__ = (
         UniqueConstraint("email", name="uq_users_email"),
         UniqueConstraint("external_subject", name="uq_users_external_subject"),
+        UniqueConstraint(
+            "tenant_id",
+            "external_object_id",
+            name="uq_users_tenant_object",
+        ),
         CheckConstraint("role IN ('admin', 'user')", name="ck_users_role"),
     )
 
@@ -52,6 +57,14 @@ class User(Base):
         default=uuid.uuid4,
     )
     external_subject: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    tenant_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        nullable=True,
+    )
+    external_object_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        nullable=True,
+    )
     email: Mapped[str] = mapped_column(String(320), nullable=False)
     display_name: Mapped[str] = mapped_column(String(255), nullable=False)
     role: Mapped[UserRole] = mapped_column(

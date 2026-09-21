@@ -88,7 +88,7 @@ def test_migration_operations_follow_dependency_order():
     )
 
 
-def test_offline_sql_builds_complete_chain_without_altering_users(monkeypatch):
+def test_offline_sql_through_second_revision_does_not_alter_users(monkeypatch):
     monkeypatch.setenv(
         "DATABASE_URL",
         "postgresql+psycopg://migration:placeholder@localhost:5432/labagent",
@@ -96,7 +96,7 @@ def test_offline_sql_builds_complete_chain_without_altering_users(monkeypatch):
     config = AlembicConfig("alembic.ini")
     config.output_buffer = StringIO()
 
-    command.upgrade(config, "head", sql=True)
+    command.upgrade(config, "0002_conversations_messages", sql=True)
     sql = config.output_buffer.getvalue().lower()
 
     users_position = sql.index("create table users")
