@@ -713,3 +713,9 @@
 - 增加 SQLAlchemy 2.x 与 psycopg 3.x 依赖，以及惰性创建、进程级复用和可释放的 PostgreSQL Engine/Session infrastructure。
 - 将数据库示例配置改为 PostgreSQL placeholder；未配置 `DATABASE_URL` 时现有应用继续正常运行，仅在显式请求数据库 Engine 时报告配置缺失。
 - 新增完全离线的数据库配置、Engine 与 Session 生命周期测试；当前尚未接入任何 Streamlit、Agent、Chat 或日报业务，未创建 schema，也未加入 Alembic。
+
+## 2026-09-21 多用户架构改造 Task 3：Alembic 迁移基础设施
+
+- 增加 Alembic infrastructure 和统一 SQLAlchemy `Base`，Alembic 与运行时 Engine 共用 `DATABASE_URL` 配置来源，并支持不连接数据库的 offline SQL 模式。
+- 当前没有业务 ORM models，没有创建实际 migration，也未连接真实 PostgreSQL。
+- Streamlit、Agent、Chat、日报文件和 Cron 均未接入数据库，现有业务行为保持不变。

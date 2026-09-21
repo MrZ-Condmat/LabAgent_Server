@@ -1,9 +1,9 @@
-import importlib
+import subprocess
+import sys
 from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
-import sqlalchemy
 
 from lab_agent.db import engine as engine_module
 from lab_agent.db import session as session_module
@@ -28,14 +28,25 @@ def database_config():
     )
 
 
-def test_import_does_not_create_an_engine(monkeypatch):
-    create_engine = Mock()
-    monkeypatch.setattr(sqlalchemy, "create_engine", create_engine)
+def test_import_does_not_create_an_engine():
+    check = """
+import sqlalchemy
+from unittest.mock import Mock
 
-    importlib.reload(engine_module)
+create_engine = Mock()
+sqlalchemy.create_engine = create_engine
+import lab_agent.db.engine
 
-    create_engine.assert_not_called()
-    assert engine_module._engine is None
+create_engine.assert_not_called()
+assert lab_agent.db.engine._engine is None
+"""
+
+    subprocess.run(
+        [sys.executable, "-c", check],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
 
 
 def test_engine_receives_expected_pool_options(monkeypatch):

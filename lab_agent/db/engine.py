@@ -17,16 +17,23 @@ _engine: Optional[Engine] = None
 _engine_lock = Lock()
 
 
-def create_database_engine(config: Optional[Config] = None) -> Engine:
-    """Create an Engine without opening a database connection."""
+def require_database_url(config: Optional[Config] = None) -> str:
+    """Return the configured database URL or raise a credential-safe error."""
     database_config = config or Config()
     if not database_config.database_url:
         raise DatabaseNotConfiguredError(
             "Database is not configured. Set DATABASE_URL."
         )
+    return database_config.database_url
+
+
+def create_database_engine(config: Optional[Config] = None) -> Engine:
+    """Create an Engine without opening a database connection."""
+    database_config = config or Config()
+    database_url = require_database_url(database_config)
 
     return create_engine(
-        database_config.database_url,
+        database_url,
         pool_size=database_config.database_pool_size,
         max_overflow=database_config.database_max_overflow,
         pool_timeout=database_config.database_pool_timeout,
