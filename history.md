@@ -696,3 +696,4 @@
 
 - 更新 `lab_agent/web/app.py` 的 Database 子页面，将 Knowledge Base Chat iframe 地址切换为 `http://166.111.26.183/chatbot/K5FEfFUZ0b0gWgrl`。
 - 保持 iframe 的自适应宽度和 `700px` 最小高度，并增加 `clipboard-write` 权限；麦克风权限继续保留。
+- 修正聊天服务地址为 `http://166.111.26.183:8080/chat/K5FEfFUZ0b0gWgrl`，使用聊天服务实际监听的 `8080` 端口和 `/chat/` 路径。

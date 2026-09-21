@@ -572,7 +572,7 @@ def database_interface():
             </div>
             <div class="database-frame-shell">
                 <iframe
-                    src="http://166.111.26.183/chatbot/K5FEfFUZ0b0gWgrl"
+                    src="http://166.111.26.183:8080/chat/K5FEfFUZ0b0gWgrl"
                     style="width: 100%; height: 100%; min-height: 700px"
                     frameborder="0"
                     allow="microphone;clipboard-write">
