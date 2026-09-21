@@ -719,3 +719,11 @@
 - 增加 Alembic infrastructure 和统一 SQLAlchemy `Base`，Alembic 与运行时 Engine 共用 `DATABASE_URL` 配置来源，并支持不连接数据库的 offline SQL 模式。
 - 当前没有业务 ORM models，没有创建实际 migration，也未连接真实 PostgreSQL。
 - Streamlit、Agent、Chat、日报文件和 Cron 均未接入数据库，现有业务行为保持不变。
+
+## 2026-09-21 多用户架构改造 Task 4：User 数据模型
+
+- 新增首个正式 SQLAlchemy ORM 模型 `User`，包含 UUID 主键、可选外部身份标识、唯一邮箱、显示名称、`admin`/`user` 角色、启用状态和带时区的审计时间字段。
+- 角色使用 Python Enum、PostgreSQL `VARCHAR(16)` 和具名 CHECK 约束，避免原生数据库 ENUM 对未来角色调整及回滚造成额外复杂度。
+- 新增首个实际 Alembic migration，仅创建 `users` 表；邮箱和外部身份标识的唯一约束会在 PostgreSQL 中提供对应唯一索引，因此未增加重复索引。
+- Alembic 环境显式加载 ORM models，支持后续 autogenerate 识别 metadata；没有连接真实数据库，也未接入 Streamlit、Authentication、Agent、Chat 或日报业务，尚未创建 Conversation / Message。
+- 新增模型和 migration 的离线测试，覆盖字段、约束、默认值、upgrade/downgrade 范围及 PostgreSQL offline SQL 输出。

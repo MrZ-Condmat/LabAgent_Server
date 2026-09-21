@@ -15,8 +15,8 @@ def alembic_config() -> AlembicConfig:
     return config
 
 
-def test_base_import_has_no_business_tables():
-    assert Base.metadata.tables == {}
+def test_base_metadata_is_available_to_alembic():
+    assert Base.metadata is not None
 
 
 def test_database_url_is_read_from_shared_config(monkeypatch):

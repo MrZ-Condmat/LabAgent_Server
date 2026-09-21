@@ -5,6 +5,7 @@ from logging.config import fileConfig
 from alembic import context
 from sqlalchemy import create_engine, pool
 
+from lab_agent.db import models as db_models  # noqa: F401
 from lab_agent.db.base import Base
 from lab_agent.db.engine import require_database_url
 
