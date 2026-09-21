@@ -707,3 +707,9 @@
 - 对 `lab_agent/agents/`、`lab_agent/tools/`、`lab_agent/web/app.py`、配置、Cron、部署和测试进行保留/改造分类，并给出 service、repository、db、api、web 分层建议。
 - 文档加入 Current Architecture 与 Intermediate Target Architecture Mermaid 图、Migration Risks、迁移总表，以及仅作为建议的 Task 2 PostgreSQL 基础配置范围；本次未实施数据库、登录、FastAPI 或聊天改造。
 - 按 README/TESTING_GUIDE 的安全静态检查方式执行 `py_compile`，目标 Python 文件全部通过；`git diff --check` 通过。`tests/test_deepseek.py` 会调用真实 LLM API，因此按任务限制未运行。
+
+## 2026-09-21 多用户架构改造 Task 2：PostgreSQL 基础层
+
+- 增加 SQLAlchemy 2.x 与 psycopg 3.x 依赖，以及惰性创建、进程级复用和可释放的 PostgreSQL Engine/Session infrastructure。
+- 将数据库示例配置改为 PostgreSQL placeholder；未配置 `DATABASE_URL` 时现有应用继续正常运行，仅在显式请求数据库 Engine 时报告配置缺失。
+- 新增完全离线的数据库配置、Engine 与 Session 生命周期测试；当前尚未接入任何 Streamlit、Agent、Chat 或日报业务，未创建 schema，也未加入 Alembic。

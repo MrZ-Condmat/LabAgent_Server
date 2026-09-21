@@ -32,8 +32,18 @@ class Config:
         self.websocket_port = int(os.getenv("WEBSOCKET_PORT", "8765"))
         self.websocket_host = os.getenv("WEBSOCKET_HOST", "0.0.0.0")
 
-        # Database settings
-        self.database_url = os.getenv("DATABASE_URL", "sqlite:///lab_agent.db")
+        # Optional database infrastructure. Existing application paths do not
+        # require a database until they explicitly request the DB layer.
+        self.database_url = os.getenv("DATABASE_URL") or None
+        self.database_pool_size = int(os.getenv("DATABASE_POOL_SIZE", "5"))
+        self.database_max_overflow = int(os.getenv("DATABASE_MAX_OVERFLOW", "5"))
+        self.database_pool_timeout = int(os.getenv("DATABASE_POOL_TIMEOUT", "30"))
+        self.database_echo = os.getenv("DATABASE_ECHO", "false").strip().lower() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }
 
         # External API settings
         self.arxiv_base_url = os.getenv("ARXIV_BASE_URL", "http://export.arxiv.org/api/query")
@@ -71,6 +81,10 @@ class Config:
             "websocket_port": self.websocket_port,
             "websocket_host": self.websocket_host,
             "database_url": self.database_url,
+            "database_pool_size": self.database_pool_size,
+            "database_max_overflow": self.database_max_overflow,
+            "database_pool_timeout": self.database_pool_timeout,
+            "database_echo": self.database_echo,
             "arxiv_base_url": self.arxiv_base_url,
             "api_rate_limit": self.api_rate_limit,
             "scraping_delay": self.scraping_delay,
