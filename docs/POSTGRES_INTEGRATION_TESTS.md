@@ -23,7 +23,7 @@
 
 ```powershell
 docker compose -f compose.integration.yml up -d
-$env:TEST_DATABASE_URL = "postgresql+psycopg://labagent_test:test_password@localhost:55432/labagent_integration_test"
+$env:TEST_DATABASE_URL = "postgresql+psycopg://labagent_test:test_password@127.0.0.1:55432/labagent_integration_test"
 python -m pytest -m integration -q
 docker compose -f compose.integration.yml down
 ```

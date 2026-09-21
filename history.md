@@ -747,5 +747,6 @@
 
 - 新增只读取 `TEST_DATABASE_URL` 的 PostgreSQL integration fixtures、pytest marker、运行文档和临时 Docker Compose 配置；数据库名必须包含 `test` 或 `integration`，并拒绝正式及 PostgreSQL 系统数据库名。
 - 集成测试覆盖真实 Alembic upgrade/downgrade/upgrade、PostgreSQL UUID/JSONB/时区类型、CHECK/UNIQUE 约束、ownership 隔离、数据库级 cascade、archive/排序、事务可见性与 rollback，以及多 Session 并发消息序号分配。
-- 当前本机没有 PostgreSQL 服务，Docker CLI 存在但 Docker Desktop 引擎未运行，因此未连接数据库或执行 online migration；12 项 integration tests 在未设置 `TEST_DATABASE_URL` 时按设计安全跳过。
-- 原有离线数据库测试继续通过；pytest 默认排除会直接调用真实 LLM 的 `tests/test_deepseek.py` smoke 脚本。尚未接入 Authentication、Streamlit 或现有 Chat。
+- 后续在用户手动启动 Docker Desktop 后，通过 disposable PostgreSQL 16 容器完成首次真实验证：Alembic upgrade/downgrade/upgrade、schema/类型/约束、ownership、cascade、archive、事务及消息顺序测试共 12 项全部通过。
+- 5 个独立 Session 并发写入同一 Conversation 共 10 条消息，最终 sequence number 为 1–10；没有 duplicate、IntegrityError、deadlock 或消息丢失。测试结束时三张业务表均为空，并关闭临时容器。
+- 原有 47 项离线测试继续通过；pytest 默认排除会直接调用真实 LLM 的 `tests/test_deepseek.py` smoke 脚本。尚未接入 Authentication、Streamlit 或现有 Chat。
