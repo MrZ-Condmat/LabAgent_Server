@@ -1,0 +1,18 @@
+name: labagent-integration
+
+services:
+  postgres-integration:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: labagent_integration_test
+      POSTGRES_USER: labagent_test
+      POSTGRES_PASSWORD: test_password
+    ports:
+      - "127.0.0.1:55432:5432"
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U labagent_test -d labagent_integration_test"]
+      interval: 2s
+      timeout: 3s
+      retries: 20

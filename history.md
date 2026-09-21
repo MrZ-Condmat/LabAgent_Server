@@ -742,3 +742,10 @@
 - Conversation 的读取、列表、重命名和归档均将 `user_id` 直接放入 SQL 条件；不存在与跨用户访问返回相同结果或统一的 `Conversation not found` 错误。
 - Message 查询通过 JOIN Conversation 校验 ownership；追加消息先以 `user_id + conversation_id` 执行 `FOR UPDATE`，再在同一事务内计算并写入下一个 sequence number。
 - 新增完全离线的 Repository SQL、跨用户行为、事务边界和并发序号分配测试；没有新增 migration，尚未接 Authentication、Streamlit 或现有 Chat，也未连接真实 PostgreSQL。
+
+## 2026-09-21 多用户架构改造 Task 7：PostgreSQL 集成测试基础设施
+
+- 新增只读取 `TEST_DATABASE_URL` 的 PostgreSQL integration fixtures、pytest marker、运行文档和临时 Docker Compose 配置；数据库名必须包含 `test` 或 `integration`，并拒绝正式及 PostgreSQL 系统数据库名。
+- 集成测试覆盖真实 Alembic upgrade/downgrade/upgrade、PostgreSQL UUID/JSONB/时区类型、CHECK/UNIQUE 约束、ownership 隔离、数据库级 cascade、archive/排序、事务可见性与 rollback，以及多 Session 并发消息序号分配。
+- 当前本机没有 PostgreSQL 服务，Docker CLI 存在但 Docker Desktop 引擎未运行，因此未连接数据库或执行 online migration；12 项 integration tests 在未设置 `TEST_DATABASE_URL` 时按设计安全跳过。
+- 原有离线数据库测试继续通过；pytest 默认排除会直接调用真实 LLM 的 `tests/test_deepseek.py` smoke 脚本。尚未接入 Authentication、Streamlit 或现有 Chat。

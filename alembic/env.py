@@ -18,10 +18,18 @@ if config.config_file_name is not None:
 target_metadata = Base.metadata
 
 
+def migration_database_url() -> str:
+    """Use an explicit caller override or the normal application configuration."""
+    explicit_url = config.attributes.get("database_url")
+    if explicit_url is not None:
+        return str(explicit_url)
+    return require_database_url()
+
+
 def run_migrations_offline() -> None:
     """Generate SQL without creating a database connection."""
     context.configure(
-        url=require_database_url(),
+        url=migration_database_url(),
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
@@ -35,7 +43,7 @@ def run_migrations_offline() -> None:
 def run_migrations_online() -> None:
     """Run migrations with a short-lived, Alembic-owned connection."""
     connectable = create_engine(
-        require_database_url(),
+        migration_database_url(),
         poolclass=pool.NullPool,
     )
 

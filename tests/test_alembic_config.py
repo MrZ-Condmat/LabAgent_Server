@@ -40,6 +40,19 @@ def test_offline_upgrade_accepts_percent_encoded_database_url(monkeypatch):
     assert "p%40ss%25word" not in config.output_buffer.getvalue()
 
 
+def test_offline_upgrade_accepts_explicit_test_url_override(monkeypatch):
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    config = alembic_config()
+    config.attributes["database_url"] = (
+        "postgresql+psycopg://test:placeholder@localhost:5432/"
+        "labagent_integration_test"
+    )
+
+    command.upgrade(config, "head", sql=True)
+
+    assert "CREATE TABLE users" in config.output_buffer.getvalue()
+
+
 def test_offline_upgrade_requires_database_configuration(monkeypatch):
     monkeypatch.delenv("DATABASE_URL", raising=False)
 
