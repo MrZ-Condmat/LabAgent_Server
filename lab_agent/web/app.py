@@ -572,10 +572,10 @@ def database_interface():
             </div>
             <div class="database-frame-shell">
                 <iframe
-                    src="https://udify.app/chatbot/ILXTVvm587WNn0DX"
+                    src="http://166.111.26.183/chatbot/K5FEfFUZ0b0gWgrl"
                     style="width: 100%; height: 100%; min-height: 700px"
                     frameborder="0"
-                    allow="microphone">
+                    allow="microphone;clipboard-write">
                 </iframe>
             </div>
         </div>

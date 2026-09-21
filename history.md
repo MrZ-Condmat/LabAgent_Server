@@ -691,3 +691,8 @@
 - 历史日志中的 16:00 CST 启动记录说明 Cron 进程此前可能保留了旧的 UTC 时区状态；服务器已重启 `cron` 服务，使其重新读取当前上海时区。
 - 最终将 `zmr` 用户的任务设置为 `0 10 * * *`，即按服务器本地时间每天 10:00 执行。检查 `/etc/crontab`、`/etc/cron.d`、用户 crontab 和 systemd timers 后，只发现这一条 LabAgent 日报任务，没有重复调度项。
 - 服务器脚本权限已恢复为 `775`，Cron 服务状态为 `active`。下一次触发后仍需通过 `logs/daily_report.log` 核对实际运行时间。
+
+## 2026-09-21 Database 聊天嵌入更新
+
+- 更新 `lab_agent/web/app.py` 的 Database 子页面，将 Knowledge Base Chat iframe 地址切换为 `http://166.111.26.183/chatbot/K5FEfFUZ0b0gWgrl`。
+- 保持 iframe 的自适应宽度和 `700px` 最小高度，并增加 `clipboard-write` 权限；麦克风权限继续保留。
