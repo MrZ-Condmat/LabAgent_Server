@@ -697,3 +697,13 @@
 - 更新 `lab_agent/web/app.py` 的 Database 子页面，将 Knowledge Base Chat iframe 地址切换为 `http://166.111.26.183/chatbot/K5FEfFUZ0b0gWgrl`。
 - 保持 iframe 的自适应宽度和 `700px` 最小高度，并增加 `clipboard-write` 权限；麦克风权限继续保留。
 - 修正聊天服务地址为 `http://166.111.26.183:8080/chat/K5FEfFUZ0b0gWgrl`，使用聊天服务实际监听的 `8080` 端口和 `/chat/` 路径。
+
+## 2026-09-21 多用户架构改造 Task 1：架构审计
+
+- 新增 `docs/MULTI_USER_ARCHITECTURE_AUDIT.md`，记录当前 Streamlit 单体架构、模块地图、启动与部署路径，以及 ArXiv、Journal、Highlights 日报的数据流。
+- 完整审计 `st.session_state`：区分临时 UI 状态、待持久化用户数据、应移入 service 的 Agent/Chat 对象和可清理的遗留 key。
+- 确认 Overview、ArXiv 和 Journal 三套聊天均存在展示历史与模型历史两份内存状态；ArXiv/Journal Chat 还持有 mutable paper context，所有聊天会在 session 失效或服务器重启后丢失。
+- 确认当前主 Web 路径没有共享 Chat singleton，但系统没有用户身份、ownership 或权限边界；共享日报文件写入也没有事务或并发控制。可选 MCP client 另有全局 singleton，未来接入多用户路径前需要处理。
+- 对 `lab_agent/agents/`、`lab_agent/tools/`、`lab_agent/web/app.py`、配置、Cron、部署和测试进行保留/改造分类，并给出 service、repository、db、api、web 分层建议。
+- 文档加入 Current Architecture 与 Intermediate Target Architecture Mermaid 图、Migration Risks、迁移总表，以及仅作为建议的 Task 2 PostgreSQL 基础配置范围；本次未实施数据库、登录、FastAPI 或聊天改造。
+- 按 README/TESTING_GUIDE 的安全静态检查方式执行 `py_compile`，目标 Python 文件全部通过；`git diff --check` 通过。`tests/test_deepseek.py` 会调用真实 LLM API，因此按任务限制未运行。
