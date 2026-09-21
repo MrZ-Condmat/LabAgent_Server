@@ -735,3 +735,10 @@
 - Conversation context 和 Message metadata 使用 PostgreSQL JSONB；消息增加 conversation 内唯一的 `sequence_number`，用于稳定恢复发送顺序。
 - 新增 `0002_conversations_messages` migration，只创建 `conversations`、`messages` 及必要约束和索引，不修改 `users` 表。
 - 新增完全离线的模型、relationship、migration 和 SQL 测试；尚未迁移现有 Chat，未实现 repository/service，也未连接真实 PostgreSQL。
+
+## 2026-09-21 多用户架构改造 Task 6：Ownership-safe Repository 层
+
+- 新增 `UserRepository`、`ConversationRepository` 和 `MessageRepository`，全部接收调用方提供的 SQLAlchemy Session，不自行创建连接或管理 commit/rollback/close。
+- Conversation 的读取、列表、重命名和归档均将 `user_id` 直接放入 SQL 条件；不存在与跨用户访问返回相同结果或统一的 `Conversation not found` 错误。
+- Message 查询通过 JOIN Conversation 校验 ownership；追加消息先以 `user_id + conversation_id` 执行 `FOR UPDATE`，再在同一事务内计算并写入下一个 sequence number。
+- 新增完全离线的 Repository SQL、跨用户行为、事务边界和并发序号分配测试；没有新增 migration，尚未接 Authentication、Streamlit 或现有 Chat，也未连接真实 PostgreSQL。
