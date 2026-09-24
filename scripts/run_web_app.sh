@@ -36,6 +36,9 @@ fi
 
 PORT="${STREAMLIT_PORT:-${ENV_PORT:-8501}}"
 HOST="${STREAMLIT_HOST:-${ENV_HOST:-0.0.0.0}}"
+# Command substitution removes LF, but a CRLF .env leaves a trailing CR.
+PORT="${PORT%$'\r'}"
+HOST="${HOST%$'\r'}"
 CONDA_BIN="$(find_conda)"
 
 exec "$CONDA_BIN" run --no-capture-output -n "$CONDA_ENV_NAME" python -m streamlit run lab_agent/web/app.py --server.address "$HOST" --server.port "$PORT"

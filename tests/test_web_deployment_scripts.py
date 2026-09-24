@@ -69,6 +69,39 @@ fi
         assert "args=run --no-capture-output -n labagent_server python -m streamlit run" in result.stdout
 
 
+def test_web_runner_strips_crlf_from_env_host_and_port():
+    bash = _bash_executable()
+    if bash is None:
+        pytest.skip("Bash is unavailable")
+    shell = r'''
+set -eu
+root="$PWD"
+test_dir="$(mktemp -d)"
+trap 'rm -rf "$test_dir"' EXIT
+mkdir -p "$test_dir/project"
+printf 'STREAMLIT_HOST=0.0.0.0\r\nSTREAMLIT_PORT=8501\r\n' > "$test_dir/project/.env"
+cat > "$test_dir/conda" <<'FAKE_CONDA'
+#!/bin/sh
+printf 'args=%s\n' "$*"
+FAKE_CONDA
+chmod +x "$test_dir/conda"
+env -u STREAMLIT_HOST -u STREAMLIT_PORT HOME="$test_dir" PATH=/usr/bin:/bin \
+    CONDA_EXE="$test_dir/conda" LABAGENT_PROJECT_ROOT="$test_dir/project" \
+    bash "$root/scripts/run_web_app.sh"
+'''
+    result = subprocess.run(
+        [bash, "-c", shell],
+        cwd=ROOT,
+        env={**os.environ},
+        text=True,
+        capture_output=True,
+        timeout=20,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "--server.address 0.0.0.0 --server.port 8501" in result.stdout
+
+
 def test_deployment_restart_passes_conda_and_gates_revision_on_health():
     source = (ROOT / "deploy_to_server.ps1").read_text(encoding="utf-8-sig")
     restart = source.index("if ($RestartWeb)")

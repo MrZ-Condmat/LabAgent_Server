@@ -171,6 +171,8 @@ an error and prints the last 50 lines of `logs/web_app.log`.
 `logs/deployed_revision.txt` is updated only after that health check passes
 when `-RestartWeb` is used. The archive may already have been extracted after
 a failed restart, so check the Web log before retrying.
+The Web launcher strips Windows CRLF line endings from `STREAMLIT_HOST` and
+`STREAMLIT_PORT` values read from the server's preserved `.env` file.
 
 It does not upload or overwrite server runtime/private data:
 

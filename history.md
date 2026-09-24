@@ -837,3 +837,4 @@
 
 - `deploy_to_server.ps1 -RestartWeb` 现在将已有的 `CONDA_EXE` 与环境名传给 `scripts/run_web_app.sh`，避免服务器 Conda 不在 PATH 时网页重启失败；未修改应用、数据库或日报逻辑。
 - 补充 Miniforge 自动发现、停止旧网页前的 Conda/环境检查，以及新进程的本机健康检查；启动失败会显示网页日志、返回非零状态并保留旧 `deployed_revision.txt`。部署脚本测试使用假 Conda，不连接服务器或真实服务。
+- 修复服务器部署后 Web 绑定地址失败：从 CRLF 格式 `.env` 读取的 `STREAMLIT_HOST`/`STREAMLIT_PORT` 会残留回车字符，启动脚本现移除行尾回车，并增加回归测试。
