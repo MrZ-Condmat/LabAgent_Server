@@ -17,7 +17,7 @@ find_conda() {
     command -v conda
     return 0
   fi
-  for candidate in "$HOME/miniconda3/bin/conda" "$HOME/anaconda3/bin/conda" "/opt/conda/bin/conda"; do
+  for candidate in "$HOME/miniforge3/bin/conda" "$HOME/miniconda3/bin/conda" "$HOME/anaconda3/bin/conda" "/opt/conda/bin/conda"; do
     if [[ -x "$candidate" ]]; then
       echo "$candidate"
       return 0

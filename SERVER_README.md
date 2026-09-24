@@ -158,6 +158,20 @@ contains the full local Git commit ID; a `-dirty` suffix means the deployment
 used `-AllowDirty`. The server does not need its own Git repository for this
 check. Compare it with local `git rev-parse HEAD`.
 
+For `-RestartWeb`, the default Conda executable is
+`/home/zmr/miniforge3/bin/conda`; override it with `-CondaExe` if the server
+uses another path. The deploy script passes `CONDA_EXE` and
+`LABAGENT_CONDA_ENV` directly to the non-interactive Web launcher, which also
+checks `$HOME/miniforge3/bin/conda` as a fallback. No `conda activate` or
+interactive shell setup is required. Before stopping the old Web process,
+deployment checks the Conda executable, environment, Streamlit import, and
+`curl`. It then waits for
+`http://127.0.0.1:8501/_stcore/health`. If startup fails, deployment returns
+an error and prints the last 50 lines of `logs/web_app.log`.
+`logs/deployed_revision.txt` is updated only after that health check passes
+when `-RestartWeb` is used. The archive may already have been extracted after
+a failed restart, so check the Web log before retrying.
+
 It does not upload or overwrite server runtime/private data:
 
 ```text
