@@ -1,7 +1,8 @@
 # FastAPI authentication gateway
 
-Task 13 adds a JSON API and a host-only, HttpOnly browser session cookie. It
-does not add a login page or change the Streamlit application.
+Task 13 added the JSON API and a host-only, HttpOnly browser session cookie.
+Task 14 adds the minimal browser login/logout pages and connects Streamlit to
+the persistent session. See [STREAMLIT_AUTH.md](STREAMLIT_AUTH.md).
 
 ## Routes
 
@@ -11,6 +12,8 @@ does not add a login page or change the Streamlit application.
 | `POST /auth/verify-code` | Verify the code, create or reuse a User and UserSession, then set the cookie. |
 | `GET /auth/me` | Validate the cookie against the persistent UserSession. |
 | `POST /auth/logout` | Revoke the session and delete the cookie; safe to repeat. |
+| `GET /auth/login` | Same-origin school-email OTP login page. |
+| `GET /auth/logout-page` | Browser page that POSTs to the existing logout route. |
 | `GET /healthz` | Process liveness only; does not access the database or SMTP. |
 
 The raw session token appears only in `Set-Cookie`, never in JSON. The database
@@ -44,9 +47,10 @@ Browser --HTTPS--> Nginx -- /auth/* --> FastAPI 127.0.0.1:8000
                          \-- /* ------> Streamlit 127.0.0.1:8501
 ```
 
-Nginx and HTTPS termination are future deployment work. Task 14 will connect
-the Streamlit UI to this gateway and plans to read the cookie via
-`st.context.cookies`; Streamlit currently has no login guard or cookie code.
+Nginx and HTTPS termination are future deployment work. Task 14 connects
+the Streamlit UI to this gateway via `st.context.cookies` and a separate
+FastAPI login page. See [STREAMLIT_AUTH.md](STREAMLIT_AUTH.md) for the browser
+flow and manual test steps.
 
 The gateway has no wildcard CORS policy. `SameSite=Lax` and JSON requests are
 the current protections for the small auth surface. Future authenticated

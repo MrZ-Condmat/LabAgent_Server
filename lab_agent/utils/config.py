@@ -27,6 +27,8 @@ class Config:
         # Web interface settings
         self.streamlit_port = int(os.getenv("STREAMLIT_PORT", "8501"))
         self.streamlit_host = os.getenv("STREAMLIT_HOST", "0.0.0.0")
+        self.streamlit_public_url = os.getenv("LABAGENT_STREAMLIT_PUBLIC_URL", "http://localhost:8501")
+        self.auth_gateway_public_url = os.getenv("LABAGENT_AUTH_GATEWAY_PUBLIC_URL", "http://localhost:8000")
 
         # WebSocket settings
         self.websocket_port = int(os.getenv("WEBSOCKET_PORT", "8765"))

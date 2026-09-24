@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sign in · LabAgent</title>
+  <style>
+    :root { color-scheme: light; font-family: system-ui, sans-serif; background: #f6f4f8; color: #241b2c; }
+    body { margin: 0; min-height: 100vh; display: grid; place-items: center; }
+    main { box-sizing: border-box; width: min(420px, calc(100vw - 32px)); padding: 32px; background: white; border: 1px solid #e7dbea; border-radius: 16px; box-shadow: 0 12px 40px #321c4212; }
+    h1 { margin: 0 0 8px; font-size: 1.8rem; }
+    p { color: #665b6e; line-height: 1.5; }
+    label { display: block; margin: 20px 0 8px; font-weight: 600; }
+    input { box-sizing: border-box; width: 100%; padding: 12px; border: 1px solid #c9b9d2; border-radius: 8px; font: inherit; }
+    button { width: 100%; margin-top: 16px; padding: 12px; border: 0; border-radius: 8px; background: #6c247c; color: white; font: inherit; font-weight: 600; cursor: pointer; }
+    button:disabled { opacity: .6; cursor: wait; }
+    #message { min-height: 1.5em; margin-bottom: 0; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>LabAgent</h1>
+    <p>Sign in with your allowed school email address.</p>
+    <form id="email-form">
+      <label for="email">School email</label>
+      <input id="email" name="email" type="email" autocomplete="email" maxlength="320" required>
+      <button id="request-button" type="submit">Send verification code</button>
+    </form>
+    <form id="code-form" hidden>
+      <label for="code">Verification code</label>
+      <input id="code" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" required>
+      <button id="verify-button" type="submit">Sign in</button>
+    </form>
+    <p id="message" role="status" aria-live="polite"></p>
+  </main>
+  <script>
+    "use strict";
+    const streamlitUrl = {{ streamlit_public_url | tojson }};
+    const emailForm = document.getElementById("email-form");
+    const codeForm = document.getElementById("code-form");
+    const emailInput = document.getElementById("email");
+    const codeInput = document.getElementById("code");
+    const requestButton = document.getElementById("request-button");
+    const verifyButton = document.getElementById("verify-button");
+    const message = document.getElementById("message");
+    let challengeId = null;
+    let issuedEmail = null;
+
+    emailForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      requestButton.disabled = true;
+      message.textContent = "Sending verification code...";
+      try {
+        const email = emailInput.value.trim();
+        const response = await fetch("/auth/request-code", {
+          method: "POST", credentials: "same-origin",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({email})
+        });
+        if (!response.ok) {
+          message.textContent = response.status === 429
+            ? "Please wait before requesting another code."
+            : response.status === 503
+              ? "Unable to send verification email."
+              : "Unable to request verification code.";
+          return;
+        }
+        const result = await response.json();
+        challengeId = result.challenge_id;
+        issuedEmail = email;
+        emailInput.readOnly = true;
+        codeForm.hidden = false;
+        requestButton.textContent = "Resend code";
+        const remaining = Math.max(1, Math.ceil((Date.parse(result.expires_at) - Date.now()) / 60000));
+        message.textContent = `Verification code sent. Code expires in approximately ${remaining} minute(s).`;
+        codeInput.focus();
+      } catch (_) {
+        message.textContent = "Unable to request verification code.";
+      } finally {
+        requestButton.disabled = false;
+      }
+    });
+
+    codeForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      if (!challengeId) return;
+      verifyButton.disabled = true;
+      message.textContent = "Signing in...";
+      try {
+        const response = await fetch("/auth/verify-code", {
+          method: "POST", credentials: "same-origin",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({email: issuedEmail, challenge_id: challengeId, code: codeInput.value.trim()})
+        });
+        if (response.ok) {
+          window.location.replace(streamlitUrl);
+          return;
+        }
+        message.textContent = response.status === 401
+          ? "Invalid or expired verification code."
+          : response.status === 403
+            ? "This account is disabled."
+            : "Unable to sign in right now.";
+      } catch (_) {
+        message.textContent = "Unable to sign in right now.";
+      } finally {
+        verifyButton.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>

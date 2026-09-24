@@ -14,6 +14,7 @@ from lab_agent.db.models import EmailLoginChallenge, User, UserSession
 from lab_agent.db.models.user import utc_now
 from lab_agent.db.session import database_session
 from lab_agent.repositories.users import UserRepository
+from lab_agent.web.auth import validate_browser_session
 
 
 pytestmark = pytest.mark.integration
@@ -160,3 +161,28 @@ def test_me_rejects_unknown_expired_revoked_and_inactive_sessions(gateway):
         session.scalar(select(UserSession)).revoked_at = None
         session.scalar(select(User)).is_active = False
     assert client.get("/auth/me", headers={"Cookie": f"labagent_session={token}"}).status_code == 401
+
+
+def test_streamlit_helper_recovers_only_live_user_sessions(gateway):
+    client, sender, factory = gateway
+    challenge_id = request_code(client)
+    response = client.post("/auth/verify-code", json={"email": EMAIL, "challenge_id": challenge_id,
+                                                       "code": sender.calls[0][1]})
+    assert response.status_code == 200
+    token = client.cookies.get("labagent_session")
+    config = client.app.dependency_overrides[get_auth_config]()
+    assert validate_browser_session(token, config=config, session_factory=factory).email == EMAIL
+    assert validate_browser_session("unknown", config=config, session_factory=factory) is None
+
+    with database_session(factory) as session:
+        session.scalar(select(UserSession)).expires_at = utc_now() - timedelta(seconds=1)
+    assert validate_browser_session(token, config=config, session_factory=factory) is None
+    with database_session(factory) as session:
+        stored = session.scalar(select(UserSession))
+        stored.expires_at = utc_now() + timedelta(days=1)
+        stored.revoked_at = utc_now()
+    assert validate_browser_session(token, config=config, session_factory=factory) is None
+    with database_session(factory) as session:
+        session.scalar(select(UserSession)).revoked_at = None
+        session.scalar(select(User)).is_active = False
+    assert validate_browser_session(token, config=config, session_factory=factory) is None

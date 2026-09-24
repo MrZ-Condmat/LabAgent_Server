@@ -798,3 +798,11 @@
 - 错误验证码返回 HTTP 401 前正常提交 `failed_attempts`；成功登录将 OTP 消费、User 更新或创建、UserSession 创建放在一个请求事务内。`/auth/me` 验证持久 Session，退出时撤销数据库 Session 并删除 Cookie。
 - 新增运行与同主机 Cookie 说明、明确的 Pydantic 输入输出 schema、FastAPI/Uvicorn/httpx 依赖以及 fake SMTP 的 TestClient 与 PostgreSQL 集成测试；116 项离线测试和 31 项集成测试通过，pytest 未发送真实邮件。
 - 没有新增 migration，Alembic head 仍为 `0004_email_otp_auth_foundation`；没有修改 Streamlit、Nginx、HTTPS、科研业务或现有未跟踪脚本。
+
+## 2026-09-24 多用户架构改造 Task 14：Streamlit 认证入口
+
+- FastAPI 新增学校邮箱 OTP 登录页面 `GET /auth/login` 和浏览器退出页面 `GET /auth/logout-page`。页面只调用同源 JSON API；challenge ID 只留在页面内存，成功后由浏览器完成到 Streamlit 的完整导航。退出页面只调用已有 `POST /auth/logout`，由其撤销 UserSession 并清除 HttpOnly Cookie。
+- Streamlit 在 `st.set_page_config()` 之后、样式及 Agent 初始化和任何业务页面渲染之前执行认证守卫。每次 rerun 从 `st.context.cookies` 读取初始请求 Cookie，经现有 SessionService 和 PostgreSQL 验证；缺失或无效时停止现有页面，后端故障则显示独立的服务错误。
+- 认证成功时侧栏显示 CurrentUser 的基本身份和同标签页 Logout 入口；认证真相仍是 HttpOnly Cookie、持久 UserSession 和数据库 User，未使用 `st.session_state` 缓存身份，也未更改现有聊天、日报、Database iframe 或页面权限逻辑。
+- 新增本地与内网手工验证文档、两个公共 URL 配置，并将 Streamlit 最低版本提高至 1.37。生产 HTTPS 仍需启用 Secure Cookie；本任务未配置 Nginx、证书或 RBAC。
+- 126 项离线测试（含 Streamlit AppTest 的匿名守卫检查）、32 项一次性 PostgreSQL 集成测试通过；Alembic head 仍为 `0004_email_otp_auth_foundation`，无数据库迁移。pytest 未发送真实 SMTP 邮件。

@@ -18,6 +18,7 @@ from lab_agent.agents.journal_daily_agent import JournalDailyAgent
 from lab_agent.tools.arxiv_chat import ArxivChat
 from lab_agent.tools.journal_chat import JournalChat
 from lab_agent.tools.highlights_report_generator import HighlightsReportGenerator
+from lab_agent.web.auth import require_current_user, render_authenticated_identity
 from openai import OpenAI
 
 nest_asyncio.apply()
@@ -409,6 +410,9 @@ def main():
         layout="wide",
         initial_sidebar_state="expanded",
     )
+
+    current_user = require_current_user(config=config)
+    render_authenticated_identity(current_user, config=config)
 
     apply_overview_styles()
     ensure_sidebar_expanded()

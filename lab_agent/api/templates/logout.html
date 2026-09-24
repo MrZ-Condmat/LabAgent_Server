@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sign out · LabAgent</title>
+  <style>
+    :root { font-family: system-ui, sans-serif; background: #f6f4f8; color: #241b2c; }
+    body { min-height: 100vh; display: grid; place-items: center; margin: 0; }
+    main { padding: 32px; background: white; border: 1px solid #e7dbea; border-radius: 16px; text-align: center; }
+    button { padding: 10px 18px; border: 0; border-radius: 8px; background: #6c247c; color: white; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>LabAgent</h1>
+    <p id="message" role="status" aria-live="polite">Signing out...</p>
+    <button id="retry" type="button" hidden>Try again</button>
+  </main>
+  <script>
+    "use strict";
+    const streamlitUrl = {{ streamlit_public_url | tojson }};
+    const message = document.getElementById("message");
+    const retry = document.getElementById("retry");
+    async function signOut() {
+      retry.hidden = true;
+      message.textContent = "Signing out...";
+      try {
+        const response = await fetch("/auth/logout", {method: "POST", credentials: "same-origin"});
+        if (response.ok) {
+          window.location.replace(streamlitUrl);
+          return;
+        }
+      } catch (_) { /* Keep the page available for a retry. */ }
+      message.textContent = "Unable to sign out. Please try again.";
+      retry.hidden = false;
+    }
+    retry.addEventListener("click", signOut);
+    signOut();
+  </script>
+</body>
+</html>

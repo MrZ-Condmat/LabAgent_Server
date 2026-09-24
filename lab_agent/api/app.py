@@ -3,11 +3,13 @@
 from fastapi import FastAPI
 
 from .auth_routes import router as auth_router
+from .pages import router as auth_pages_router
 
 
 def create_app() -> FastAPI:
     application = FastAPI(title="LabAgent Auth Gateway")
     application.include_router(auth_router)
+    application.include_router(auth_pages_router)
 
     @application.get("/healthz")
     def healthz() -> dict[str, str]:
