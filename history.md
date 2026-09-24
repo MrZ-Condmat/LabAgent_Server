@@ -765,3 +765,12 @@
 - 扩展 `IdentityClaims`、`CurrentUser`、`UserRepository` 和 `AuthenticationService`，按 subject、tenant/object、email 三路查找并进行 fail-closed 冲突检查；tenant/object 命中但 subject 改变时拒绝静默覆盖。
 - PostgreSQL 16 上 13 项 integration tests 全部通过，包括 migration round-trip、真实 UUID/复合唯一约束，以及原有 ownership、cascade、transaction 和 5 Session/10 Message 并发顺序测试；74 项离线测试通过。
 - 尚未连接 Microsoft OIDC、Graph、Streamlit 登录或 tenant/domain allowlist，未添加任何 client secret。
+
+## 2026-09-24 多用户架构改造 Task 10：Email OTP 认证基础
+
+- 第一版认证策略调整为学校邮箱域名白名单、一次性邮箱验证码和可撤销的持久登录 Session；允许域名为 `mails.tsinghua.edu.cn` 与 `mail.tsinghua.edu.cn`，采用邮箱规范化和域名精确匹配。
+- 新增 `EmailLoginChallenge`、`UserSession`、对应 Repository 和 `0004_email_otp_auth_foundation` migration。验证码与 Session token 均仅以独立密钥的 HMAC-SHA256 摘要入库；验证码使用六位安全随机数、五分钟有效期、最多五次失败尝试、单次消费及重发失效机制。
+- 验证 challenge 使用 PostgreSQL `FOR UPDATE`；发放 challenge 使用按邮箱的事务级 advisory lock，实现六十秒重发冷却和十分钟最多五次请求。调用方负责提交验证失败次数及其他事务变更。
+- Session 使用高熵不透明 token、三十天有效期、撤销时间和用户启用状态检查；没有增加浏览器 Cookie 或 Streamlit 登录界面。
+- PostgreSQL 16 的 upgrade/downgrade/upgrade、CHECK/UNIQUE、数据库级级联、两事务并发消费、Session 过期/撤销/停用和既有集成测试共 17 项通过；85 项离线测试通过。测试容器在验证后关闭，不保留数据。
+- 既有 Entra `tenant_id`、`external_object_id`、`external_subject` 字段保留，Email OTP 用户可保持 NULL。尚未连接 SMTP，也未发送真实邮件；没有修改科研 Agent、聊天或日报流程。

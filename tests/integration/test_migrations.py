@@ -16,20 +16,20 @@ def test_upgrade_downgrade_upgrade_cycle_and_revision(
     integration_engine,
     migration_cycle,
 ):
-    assert {"users", "conversations", "messages"}.isdisjoint(
+    assert {"users", "conversations", "messages", "email_login_challenges", "user_sessions"}.isdisjoint(
         migration_cycle.tables_after_downgrade
     )
     assert migration_cycle.enum_types_after_downgrade == frozenset()
 
     inspector = inspect(integration_engine)
-    assert {"users", "conversations", "messages", "alembic_version"}.issubset(
+    assert {"users", "conversations", "messages", "email_login_challenges", "user_sessions", "alembic_version"}.issubset(
         set(inspector.get_table_names())
     )
     with integration_engine.connect() as connection:
         revision = connection.execute(
             text("SELECT version_num FROM alembic_version")
         ).scalar_one()
-    assert revision == "0003_entra_identity"
+    assert revision == "0004_email_otp_auth_foundation"
 
 
 def test_reflected_postgresql_column_types(integration_engine):
@@ -37,6 +37,8 @@ def test_reflected_postgresql_column_types(integration_engine):
     users = columns_by_name(inspector, "users")
     conversations = columns_by_name(inspector, "conversations")
     messages = columns_by_name(inspector, "messages")
+    challenges = columns_by_name(inspector, "email_login_challenges")
+    sessions = columns_by_name(inspector, "user_sessions")
 
     assert isinstance(users["id"]["type"], UUID)
     assert isinstance(users["tenant_id"]["type"], UUID)
@@ -59,3 +61,6 @@ def test_reflected_postgresql_column_types(integration_engine):
     assert isinstance(messages["sequence_number"]["type"], Integer)
     assert isinstance(messages["created_at"]["type"], DateTime)
     assert messages["created_at"]["type"].timezone is True
+    assert isinstance(challenges["id"]["type"], UUID)
+    assert challenges["expires_at"]["type"].timezone is True
+    assert sessions["expires_at"]["type"].timezone is True

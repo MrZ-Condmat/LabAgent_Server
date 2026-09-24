@@ -45,6 +45,20 @@ class Config:
             "on",
         }
 
+        # Auth settings are optional until an auth service is explicitly used.
+        self.allowed_email_domains = os.getenv(
+            "LABAGENT_ALLOWED_EMAIL_DOMAINS",
+            "mails.tsinghua.edu.cn,mail.tsinghua.edu.cn",
+        )
+        self.auth_otp_hmac_secret = os.getenv("AUTH_OTP_HMAC_SECRET")
+        self.auth_otp_ttl_seconds = int(os.getenv("AUTH_OTP_TTL_SECONDS", "300"))
+        self.auth_otp_max_attempts = int(os.getenv("AUTH_OTP_MAX_ATTEMPTS", "5"))
+        self.auth_otp_resend_cooldown_seconds = int(os.getenv("AUTH_OTP_RESEND_COOLDOWN_SECONDS", "60"))
+        self.auth_otp_max_requests_per_window = int(os.getenv("AUTH_OTP_MAX_REQUESTS_PER_WINDOW", "5"))
+        self.auth_otp_request_window_seconds = int(os.getenv("AUTH_OTP_REQUEST_WINDOW_SECONDS", "600"))
+        self.auth_session_hmac_secret = os.getenv("AUTH_SESSION_HMAC_SECRET")
+        self.auth_session_ttl_days = int(os.getenv("AUTH_SESSION_TTL_DAYS", "30"))
+
         # External API settings
         self.arxiv_base_url = os.getenv("ARXIV_BASE_URL", "http://export.arxiv.org/api/query")
 

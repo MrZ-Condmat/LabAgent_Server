@@ -22,6 +22,7 @@ from lab_agent.db.base import Base
 
 if TYPE_CHECKING:
     from .conversation import Conversation
+    from .user_session import UserSession
 
 
 def utc_now() -> datetime:
@@ -108,4 +109,7 @@ class User(Base):
         back_populates="user",
         cascade="all, delete-orphan",
         passive_deletes=True,
+    )
+    sessions: Mapped[list["UserSession"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan", passive_deletes=True,
     )

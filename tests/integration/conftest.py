@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 PROJECT_ROOT = Path(__file__).parents[2]
 PROTECTED_DATABASE_NAMES = {"postgres", "template0", "template1", "labagent"}
-BUSINESS_TABLES = {"users", "conversations", "messages"}
+BUSINESS_TABLES = {"users", "conversations", "messages", "email_login_challenges", "user_sessions"}
 
 
 @dataclass(frozen=True)
@@ -111,13 +111,13 @@ def clean_business_tables(integration_engine: Engine):
     """Truncate all business tables around a data-changing integration test."""
     with integration_engine.begin() as connection:
         connection.execute(
-            text("TRUNCATE TABLE messages, conversations, users CASCADE")
+            text("TRUNCATE TABLE email_login_challenges, user_sessions, messages, conversations, users CASCADE")
         )
     yield
 
     with integration_engine.begin() as connection:
         connection.execute(
-            text("TRUNCATE TABLE messages, conversations, users CASCADE")
+            text("TRUNCATE TABLE email_login_challenges, user_sessions, messages, conversations, users CASCADE")
         )
 
 
