@@ -53,12 +53,21 @@ try {
     Assert-CommandExists scp
     Assert-CommandExists ssh
 
-    $Dirty = git status --short
+    $Dirty = git status --porcelain=v1
+    if ($LASTEXITCODE -ne 0) {
+        throw "Could not verify Git working tree status."
+    }
     if ($Dirty -and -not $AllowDirty) {
         Write-Host "Working tree has uncommitted changes:" -ForegroundColor Yellow
         $Dirty | ForEach-Object { Write-Host "  $_" -ForegroundColor Yellow }
         throw "Commit changes first, or rerun with -AllowDirty if you intentionally want to deploy uncommitted files."
     }
+
+    $Commit = git rev-parse --verify HEAD
+    if ($LASTEXITCODE -ne 0 -or $Commit -notmatch '^[0-9a-f]{40,64}$') {
+        throw "Could not determine the Git commit to deploy."
+    }
+    $Revision = if ($Dirty) { "$Commit-dirty" } else { $Commit }
 
     if (Test-Path -LiteralPath $ArchivePath) {
         Remove-Item -LiteralPath $ArchivePath -Force
@@ -85,6 +94,7 @@ try {
     $RemoteRootQ = ConvertTo-BashSingleQuoted $RemoteRoot
     $RemoteArchiveQ = ConvertTo-BashSingleQuoted $RemoteArchive
     $RemoteScriptQ = ConvertTo-BashSingleQuoted $RemoteScript
+    $RevisionQ = ConvertTo-BashSingleQuoted $Revision
     $CondaExeQ = ConvertTo-BashSingleQuoted $CondaExe
     $CondaEnvQ = ConvertTo-BashSingleQuoted $CondaEnv
 
@@ -119,6 +129,10 @@ try {
         $RemoteLines += "nohup bash scripts/run_web_app.sh > logs/web_app.log 2>&1 &"
         $RemoteLines += "echo `"Web app restart requested. Check logs/web_app.log on the server.`""
     }
+
+    $RemoteLines += "printf '%s\n' $RevisionQ > logs/deployed_revision.txt.tmp"
+    $RemoteLines += "mv logs/deployed_revision.txt.tmp logs/deployed_revision.txt"
+    $RemoteLines += "echo `"Recorded deployment revision: $Revision`""
 
     $Utf8NoBom = New-Object System.Text.UTF8Encoding($false)
     [System.IO.File]::WriteAllText($LocalRemoteScript, ($RemoteLines -join "`n") + "`n", $Utf8NoBom)

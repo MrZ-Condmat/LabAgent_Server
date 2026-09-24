@@ -806,3 +806,9 @@
 - 认证成功时侧栏显示 CurrentUser 的基本身份和同标签页 Logout 入口；认证真相仍是 HttpOnly Cookie、持久 UserSession 和数据库 User，未使用 `st.session_state` 缓存身份，也未更改现有聊天、日报、Database iframe 或页面权限逻辑。
 - 新增本地与内网手工验证文档、两个公共 URL 配置，并将 Streamlit 最低版本提高至 1.37。生产 HTTPS 仍需启用 Secure Cookie；本任务未配置 Nginx、证书或 RBAC。
 - 126 项离线测试（含 Streamlit AppTest 的匿名守卫检查）、32 项一次性 PostgreSQL 集成测试通过；Alembic head 仍为 `0004_email_otp_auth_foundation`，无数据库迁移。pytest 未发送真实 SMTP 邮件。
+
+## 2026-09-24 部署版本记录
+
+- 继续使用本地 Git 和现有 SCP/SSH 同步脚本，不要求服务器运行目录建立 Git 仓库。
+- 部署脚本现在先确认本地 Git 状态与提交号；完成所有请求的部署步骤后，将提交号写入服务器 `logs/deployed_revision.txt`。使用 `-AllowDirty` 时标记为 `-dirty`，避免把未提交文件误认为纯净提交。
+- 此改动只涉及部署脚本和文档，不修改认证、数据库、日报或网页逻辑；尚未向服务器部署这次脚本改动。

@@ -140,7 +140,8 @@ After editing files locally in `G:\labAgent\labAgent_Server`, commit your work a
 ```powershell
 cd G:\labAgent\labAgent_Server
 git status
-git add .
+git add -u
+# Add any intended new files individually before committing.
 git commit -m "Describe the change"
 .\deploy_to_server.ps1 -RestartWeb -RunSmokeTest
 ```
@@ -150,6 +151,12 @@ The deploy script uploads code to:
 ```text
 /data/zmr/projects/labAgent_Server
 ```
+
+After a successful deployment, read the deployed commit on the server with
+`cat /data/zmr/projects/labAgent_Server/logs/deployed_revision.txt`. The file
+contains the full local Git commit ID; a `-dirty` suffix means the deployment
+used `-AllowDirty`. The server does not need its own Git repository for this
+check. Compare it with local `git rev-parse HEAD`.
 
 It does not upload or overwrite server runtime/private data:
 
