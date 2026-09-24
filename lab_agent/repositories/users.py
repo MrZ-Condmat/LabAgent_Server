@@ -43,6 +43,12 @@ class UserRepository:
         self.session.flush()
         return user
 
+    def update_last_login(self, user: User, *, last_login_at: datetime) -> User:
+        """Record a successful local login without changing linked identities."""
+        user.last_login_at = last_login_at
+        self.session.flush()
+        return user
+
     def update_login_identity(
         self,
         user: User,

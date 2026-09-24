@@ -96,3 +96,21 @@ def test_update_login_identity_changes_only_allowed_fields_and_flushes():
     session.commit.assert_not_called()
     session.rollback.assert_not_called()
     session.close.assert_not_called()
+
+
+def test_update_last_login_preserves_identity_and_transaction_boundary():
+    session = Mock(spec=Session)
+    repository = UserRepository(session)
+    user = User(email="user@example.com", display_name="Existing", external_subject="stable-sub",
+                tenant_id=uuid4(), external_object_id=uuid4(), role="admin", is_active=True)
+    original_identity = (user.email, user.external_subject, user.tenant_id, user.external_object_id, user.role)
+    login_time = datetime.now(timezone.utc)
+
+    assert repository.update_last_login(user, last_login_at=login_time) is user
+
+    assert user.last_login_at is login_time
+    assert (user.email, user.external_subject, user.tenant_id, user.external_object_id, user.role) == original_identity
+    session.flush.assert_called_once_with()
+    session.commit.assert_not_called()
+    session.rollback.assert_not_called()
+    session.close.assert_not_called()

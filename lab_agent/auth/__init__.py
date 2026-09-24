@@ -14,6 +14,11 @@ from .sessions import IssuedSession, SessionService
 from .email_sender import EmailSender, EmailDeliveryError, EmailAuthenticationError, EmailSenderConfigurationError
 from .smtp_sender import SmtpEmailSender
 from .email_otp_delivery import EmailOtpDeliveryService, EmailDeliveryResult
+from .email_otp_authentication import (
+    EmailOtpAuthenticationAttempt,
+    EmailOtpAuthenticationResult,
+    EmailOtpAuthenticationService,
+)
 
 __all__ = [
     "AuthenticationError",
@@ -37,4 +42,7 @@ __all__ = [
     "SmtpEmailSender",
     "EmailOtpDeliveryService",
     "EmailDeliveryResult",
+    "EmailOtpAuthenticationAttempt",
+    "EmailOtpAuthenticationResult",
+    "EmailOtpAuthenticationService",
 ]

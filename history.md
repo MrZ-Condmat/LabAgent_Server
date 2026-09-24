@@ -782,3 +782,11 @@
 - 发送失败会向调用方传播安全的异常，由调用方数据库事务回滚 challenge 插入和旧 challenge 失效；发送成功后仍由调用方提交。已记录“邮件成功但数据库提交失败”时验证码不可用、需重新请求的权衡。
 - 新增只供人工显式执行的 SMTP smoke 脚本及服务器测试说明；脚本不创建数据库 challenge，也不打印验证码或密码。本次环境未配置真实 SMTP 凭据，未连接或发送真实邮件。
 - 模拟 SMTP 离线测试与真实 PostgreSQL fake sender 事务测试通过：99 项离线测试、19 项集成测试。未新增 migration，Alembic head 仍为 `0004_email_otp_auth_foundation`；没有修改 Streamlit 登录 UI、Cookie、User 自动注册、Session 创建或科研业务逻辑。
+
+## 2026-09-24 多用户架构改造 Task 12：Email OTP 后端登录编排
+
+- 新增 `EmailOtpAuthenticationService`，复用现有 OTP 验证、User Repository、SessionService 和 CurrentUser。在验证码验证成功后按规范化邮箱复用 User 或创建 active、`role=user` 的 User；新用户的 Entra 身份字段保持 NULL。
+- 既有用户的 role 和 Entra 绑定不变；停用用户拒绝登录。成功登录只更新 `last_login_at`，再创建 UserSession，并一次性返回 CurrentUser、session ID、raw token 和过期时间；数据库仍仅保存 token HMAC。
+- 错误验证码沿用正常失败结果，调用方可提交 `failed_attempts`，且不会创建 User 或 Session。成功路径的 OTP 消费、User 创建或更新、Session 创建由调用方在同一个事务内提交；Session 创建失败时整体回滚。
+- PostgreSQL 16 上 26 项集成测试通过，包括首次建号、既有管理员、停用用户、错误验证码计数、事务回滚及两个独立 Session 并发消费同一 OTP 时仅有一个成功和一个 UserSession。104 项离线测试通过。
+- 没有新增 migration，Alembic head 仍为 `0004_email_otp_auth_foundation`；没有修改 SMTP 发送、Streamlit UI、浏览器 Cookie 或科研业务逻辑，也没有发送真实邮件。
