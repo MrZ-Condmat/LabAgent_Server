@@ -1,6 +1,8 @@
 """Offline checks for private chat helpers and context reconstruction."""
 
 from types import SimpleNamespace
+from unittest.mock import Mock
+from uuid import uuid4
 
 import pytest
 
@@ -8,6 +10,7 @@ from lab_agent.db.models import ConversationType, MessageRole
 from lab_agent.services.chat_conversations import conversation_title, model_history
 from lab_agent.web.chat_context import arxiv_context, context_label, hydrate_paper_history, journal_context, selector_changed
 from lab_agent.web.chat_reports import load_arxiv_papers, load_journal_papers
+from lab_agent.web.chat_ui import cancel_pending_delete, delete_confirmed_conversation
 
 
 def test_title_and_runtime_history_are_deterministic_and_exclude_system():
@@ -80,3 +83,34 @@ def test_report_loaders_use_persisted_context_not_current_page_selection():
     # The page may now select a different date/journal; the loader sees only saved context.
     assert load_journal_papers(JournalAgent(), saved_context) == [{"title": "old journal"}]
     assert load_arxiv_papers(None, saved_context) is None
+
+
+@pytest.mark.parametrize("key", (
+    "overview_active_conversation_id",
+    "arxiv_active_conversation_id",
+    "journal_active_conversation_id",
+))
+def test_delete_confirmation_helpers_preserve_or_clear_active_selection(key):
+    store = Mock()
+    actor = SimpleNamespace(id=uuid4())
+    active = uuid4()
+    inactive = uuid4()
+    state = {key: active, f"{key}_pending_delete": inactive}
+
+    cancel_pending_delete(state, key)
+    assert state[key] == active
+    assert f"{key}_pending_delete" not in state
+    store.delete_conversation.assert_not_called()
+
+    state[f"{key}_pending_delete"] = inactive
+    delete_confirmed_conversation(store, actor, state, key, inactive)
+    store.delete_conversation.assert_called_once_with(actor, inactive)
+    assert state[key] == active
+    assert f"{key}_pending_delete" not in state
+
+    store.reset_mock()
+    state[f"{key}_pending_delete"] = active
+    delete_confirmed_conversation(store, actor, state, key, active)
+    store.delete_conversation.assert_called_once_with(actor, active)
+    assert state[key] is None
+    assert f"{key}_pending_delete" not in state

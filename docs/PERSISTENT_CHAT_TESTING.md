@@ -8,6 +8,7 @@
 - The existing `conversation_type` values `overview`, `arxiv`, and `journal` distinguish the three workspaces. `context_metadata` stores only the report date and, for Journal, summary or journal slug/name. It never copies report papers or stores credentials.
 - System and paper context prompts are built at runtime. Only visible user and assistant turns are saved. A New Conversation begins an empty draft and leaves older database records intact.
 - Sending commits the user turn first, closes that database transaction, calls the model, and then commits the assistant turn in a second transaction. A model error leaves the user turn in history with no fabricated assistant turn.
+- A user may permanently delete one of their own conversations from **Recent Conversations** after a separate confirmation. PostgreSQL cascades deletion to its messages; shared ArXiv and Journal reports remain intact. Admins cannot delete another user's private chat. Deletion cannot be undone. **New Conversation** only starts a blank draft and does not delete anything.
 - No schema change was needed. Alembic head remains `0004_email_otp_auth_foundation`.
 
 ## Manual server acceptance
@@ -21,6 +22,7 @@ Use a test account and avoid private research content in test prompts. Confirm t
 5. Temporarily make a test report unavailable. Its old chat should remain readable, show a context warning, and disable sending until the report is available again. Do not remove production reports for this test.
 6. Log in as another test user. The first user's entries must be absent. Repeat with an admin account: admin can see only its own private chats.
 7. If a test LLM call fails, refresh: the user message should remain, with no assistant error text saved as a reply. A later message can continue the conversation.
+8. In each of **Overview**, **ArXiv Daily**, and **Journal Daily**, click **Delete** beside a test conversation. First choose **Cancel** and confirm it remains. Repeat and choose **Delete permanently**; the entry and its messages should disappear. Deleting an inactive entry must leave the active chat open. Deleting the active entry should show a blank draft. Shared reports must still be present. Check that another user, including an admin, cannot see or delete the deleted user's other private chats.
 
 The **Recent Conversations** list shows at most 20 entries per workspace, ordered by last message time. A fresh browser session opens the most recent conversation; any older entry can be opened from the list.
 

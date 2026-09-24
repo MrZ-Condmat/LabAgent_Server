@@ -103,6 +103,11 @@ class ChatConversationService:
                 current_user.id, conversation_id, role=MessageRole.ASSISTANT, content=content
             )
 
+    def delete_conversation(self, current_user: CurrentUser, conversation_id: UUID) -> None:
+        """Commit a permanent, ownership-checked deletion in its own transaction."""
+        with database_session(self.session_factory) as session:
+            ConversationRepository(session).delete_for_user(current_user.id, conversation_id)
+
     def generate_reply(
         self,
         current_user: CurrentUser,

@@ -3,9 +3,10 @@
 from uuid import uuid4
 
 import pytest
+from sqlalchemy import select
 
 from lab_agent.auth.models import CurrentUser
-from lab_agent.db.models import ConversationType, MessageRole, User, UserRole
+from lab_agent.db.models import Conversation, ConversationType, Message, MessageRole, User, UserRole
 from lab_agent.db.session import database_session
 from lab_agent.repositories.errors import OwnedResourceNotFoundError
 from lab_agent.repositories.users import UserRepository
@@ -104,3 +105,50 @@ def test_model_failure_keeps_user_turn_without_fake_assistant(integration_sessio
     assert [m.sequence_number for m in service.load(user, ConversationType.OVERVIEW, conversation_id)[1]] == [1, 2]
     service.generate_reply(user, ConversationType.OVERVIEW, conversation_id, lambda _: "Recovered answer")
     assert [m.sequence_number for m in service.load(user, ConversationType.OVERVIEW, conversation_id)[1]] == [1, 2, 3]
+
+
+@pytest.mark.parametrize("conversation_type,context", [
+    (ConversationType.OVERVIEW, {}),
+    (ConversationType.ARXIV, {"report_date": "2026-09-14"}),
+    (ConversationType.JOURNAL, {"report_date": "2026-09-14", "report_type": "summary"}),
+])
+def test_owner_delete_uses_database_cascade_and_spares_other_chat_and_report(
+    integration_session_factory, tmp_path, conversation_type, context,
+):
+    user = add_identity(integration_session_factory, f"delete-{conversation_type.value}")
+    service = ChatConversationService(integration_session_factory)
+    to_delete = service.append_user(user, conversation_type, context, "First message")
+    service.append_assistant(user, conversation_type, to_delete, "Reply")
+    service.append_user(user, conversation_type, context, "Third message", to_delete)
+    keep = service.append_user(user, conversation_type, context, "Keep this chat")
+    report = tmp_path / "shared_report.json"
+    report.write_text('{"all_papers": []}', encoding="utf-8")
+
+    service.delete_conversation(user, to_delete)
+
+    with database_session(integration_session_factory) as session:
+        assert session.get(Conversation, to_delete) is None
+        assert session.scalars(select(Message).where(Message.conversation_id == to_delete)).all() == []
+        assert session.get(Conversation, keep) is not None
+    assert report.read_text(encoding="utf-8") == '{"all_papers": []}'
+    assert [item.id for item in service.list_recent(user, conversation_type)] == [keep]
+    with pytest.raises(OwnedResourceNotFoundError, match="^Conversation not found$"):
+        service.load(user, conversation_type, to_delete)
+
+
+def test_unknown_foreign_and_admin_deletes_have_same_not_found_semantics(integration_session_factory):
+    owner = add_identity(integration_session_factory, "delete-owner")
+    other = add_identity(integration_session_factory, "delete-other")
+    admin = add_identity(integration_session_factory, "delete-admin", UserRole.ADMIN)
+    service = ChatConversationService(integration_session_factory)
+    owned_id = service.append_user(owner, ConversationType.OVERVIEW, {}, "Private chat")
+    other_id = service.append_user(other, ConversationType.OVERVIEW, {}, "Other private chat")
+    admin_id = service.append_user(admin, ConversationType.OVERVIEW, {}, "Admin private chat")
+
+    for actor, target in ((owner, other_id), (admin, owned_id), (other, admin_id), (owner, uuid4())):
+        with pytest.raises(OwnedResourceNotFoundError, match="^Conversation not found$"):
+            service.delete_conversation(actor, target)
+
+    assert len(service.load(owner, ConversationType.OVERVIEW, owned_id)[1]) == 1
+    assert len(service.load(other, ConversationType.OVERVIEW, other_id)[1]) == 1
+    assert len(service.load(admin, ConversationType.OVERVIEW, admin_id)[1]) == 1

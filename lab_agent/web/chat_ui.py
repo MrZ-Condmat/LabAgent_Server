@@ -13,6 +13,19 @@ from lab_agent.services.chat_conversations import ChatConversationService
 from lab_agent.web.chat_context import context_label, hydrate_paper_history, selector_changed
 
 
+def cancel_pending_delete(state, key: str) -> None:
+    """Cancel a proposed deletion without changing database state."""
+    state.pop(f"{key}_pending_delete", None)
+
+
+def delete_confirmed_conversation(store, current_user: CurrentUser, state, key: str, conversation_id) -> None:
+    """Delete only after confirmation and leave other active chats selected."""
+    store.delete_conversation(current_user, conversation_id)
+    cancel_pending_delete(state, key)
+    if state.get(key) == conversation_id:
+        state[key] = None
+
+
 def select_workspace(
     current_user: CurrentUser,
     conversation_type: ConversationType,
@@ -27,25 +40,56 @@ def select_workspace(
         previous = st.session_state.get(selector_key)
         if selector_changed(previous, selector):
             st.session_state[key] = None
+            cancel_pending_delete(st.session_state, key)
         st.session_state[selector_key] = selector
 
     recent = store.list_recent(current_user, conversation_type)
     if key not in st.session_state:
         # A new browser session can resume the most recently active conversation.
         st.session_state[key] = recent[0].id if recent else None
+    pending_id = st.session_state.get(f"{key}_pending_delete")
+    if pending_id is not None and all(item.id != pending_id for item in recent):
+        cancel_pending_delete(st.session_state, key)
 
     new_col, count_col = st.columns([3, 1])
     with new_col:
         if st.button("New Conversation", key=f"{key}_new", use_container_width=True):
             st.session_state[key] = None
+            cancel_pending_delete(st.session_state, key)
             st.rerun()
 
     with st.expander("Recent Conversations"):
         for item in recent:
             label = f"{context_label(conversation_type, item.context_metadata)} · {item.title}"
-            if st.button(label, key=f"{key}_open_{item.id}", use_container_width=True):
-                st.session_state[key] = item.id
-                st.rerun()
+            open_col, delete_col = st.columns([5, 1])
+            with open_col:
+                if st.button(label, key=f"{key}_open_{item.id}", use_container_width=True):
+                    st.session_state[key] = item.id
+                    cancel_pending_delete(st.session_state, key)
+                    st.rerun()
+            with delete_col:
+                if st.button("Delete", key=f"{key}_delete_{item.id}", use_container_width=True):
+                    st.session_state[f"{key}_pending_delete"] = item.id
+                    st.rerun()
+
+            if st.session_state.get(f"{key}_pending_delete") == item.id:
+                st.warning(f"Permanently delete ‘{item.title}’ and all its messages? This cannot be undone.")
+                cancel_col, confirm_col = st.columns(2)
+                with cancel_col:
+                    if st.button("Cancel", key=f"{key}_cancel_delete", use_container_width=True):
+                        cancel_pending_delete(st.session_state, key)
+                        st.rerun()
+                with confirm_col:
+                    if st.button("Delete permanently", key=f"{key}_confirm_delete", use_container_width=True):
+                        try:
+                            delete_confirmed_conversation(store, current_user, st.session_state, key, item.id)
+                        except OwnedResourceNotFoundError:
+                            cancel_pending_delete(st.session_state, key)
+                            st.warning("Conversation is unavailable.")
+                        except Exception:
+                            st.error("Unable to delete this conversation. Please try again.")
+                        else:
+                            st.rerun()
 
     conversation = None
     messages = []

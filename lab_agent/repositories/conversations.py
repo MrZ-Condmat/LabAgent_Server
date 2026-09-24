@@ -3,7 +3,7 @@
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from lab_agent.db.models import Conversation, ConversationType
@@ -97,3 +97,13 @@ class ConversationRepository:
         conversation.updated_at = now
         self.session.flush()
         return conversation
+
+    def delete_for_user(self, user_id: UUID, conversation_id: UUID) -> None:
+        """Permanently remove one owned row; PostgreSQL cascades its messages."""
+        statement = (
+            delete(Conversation)
+            .where(Conversation.id == conversation_id, Conversation.user_id == user_id)
+            .returning(Conversation.id)
+        )
+        if self.session.scalar(statement) is None:
+            raise OwnedResourceNotFoundError("Conversation not found")

@@ -137,3 +137,27 @@ def test_rename_and_archive_update_owned_conversation_without_commit():
     session.commit.assert_not_called()
     session.rollback.assert_not_called()
     session.close.assert_not_called()
+
+
+def test_delete_for_user_filters_owner_in_delete_and_leaves_commit_to_caller():
+    session = Mock(spec=Session)
+    conversation_id = uuid4()
+    user_id = uuid4()
+    session.scalar.return_value = conversation_id
+
+    ConversationRepository(session).delete_for_user(user_id, conversation_id)
+
+    sql = compile_postgresql(session.scalar.call_args.args[0])
+    assert "DELETE FROM conversations" in sql
+    assert "conversations.id" in sql and str(conversation_id) in sql
+    assert "conversations.user_id" in sql and str(user_id) in sql
+    assert "RETURNING conversations.id" in sql
+    session.commit.assert_not_called()
+
+
+def test_delete_for_user_hides_missing_and_foreign_conversations_equally():
+    session = Mock(spec=Session)
+    session.scalar.return_value = None
+    with pytest.raises(OwnedResourceNotFoundError, match="^Conversation not found$"):
+        ConversationRepository(session).delete_for_user(uuid4(), uuid4())
+    session.commit.assert_not_called()

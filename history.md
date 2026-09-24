@@ -826,3 +826,9 @@
 - ArXiv 聊天保存报告日期；Journal 聊天保存日期、Summary 或 journal slug/name。重开旧聊天时重新读取其原始共享报告；报告不可用时可读历史、禁止继续发送，页面选择变化不会改写旧聊天上下文。
 - 新聊天延迟到首条用户消息才创建；最近 20 条按活动时间排序。用户消息先提交，LLM 调用期间无数据库事务，成功后再单独提交助手消息；模型失败只保留用户消息。管理员同样只能读写自己的私人聊天。
 - 复用既有 `conversation_type`、`context_metadata`、`updated_at` 和加锁顺序追加逻辑，无 schema migration；Alembic head 仍为 `0004_email_otp_auth_foundation`。144 项离线测试及 43 项一次性 PostgreSQL 集成测试通过，新增手工 E2E 验收文档，未修改科研日报生成、认证或管理员管理逻辑。
+
+## 2026-09-24 多用户架构改造 Task 16.1：单条聊天永久删除
+
+- Recent Conversations 中每条聊天增加 Delete 与二次确认；取消时无数据库变更，确认后经 `ChatConversationService` 和 ownership-safe `ConversationRepository` 永久删除一条 Conversation。
+- PostgreSQL `ON DELETE CASCADE` 自动删除其 Messages；删除当前聊天后进入空白草稿，删除其他聊天不影响当前会话。普通用户和管理员均只能删除自己的私人聊天，共享日报文件不受影响。
+- 无 schema migration，Alembic head 仍为 `0004_email_otp_auth_foundation`；新增删除、级联、跨用户/管理员隔离和三类聊天 UI 状态测试。149 项离线测试与 47 项一次性 PostgreSQL 集成测试通过。
