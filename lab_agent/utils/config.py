@@ -59,6 +59,16 @@ class Config:
         self.auth_session_hmac_secret = os.getenv("AUTH_SESSION_HMAC_SECRET")
         self.auth_session_ttl_days = int(os.getenv("AUTH_SESSION_TTL_DAYS", "30"))
 
+        # SMTP is validated only when the optional email transport is constructed.
+        self.smtp_host = os.getenv("SMTP_HOST", "mails.tsinghua.edu.cn")
+        self.smtp_port = int(os.getenv("SMTP_PORT", "465"))
+        self.smtp_username = os.getenv("SMTP_USERNAME")
+        self.smtp_password = os.getenv("SMTP_PASSWORD")
+        self.smtp_from = os.getenv("SMTP_FROM")
+        self.smtp_from_name = os.getenv("SMTP_FROM_NAME", "LabAgent")
+        self.smtp_use_ssl = os.getenv("SMTP_USE_SSL", "true").strip().lower() in {"1", "true", "yes", "on"}
+        self.smtp_timeout_seconds = int(os.getenv("SMTP_TIMEOUT_SECONDS", "20"))
+
         # External API settings
         self.arxiv_base_url = os.getenv("ARXIV_BASE_URL", "http://export.arxiv.org/api/query")
 

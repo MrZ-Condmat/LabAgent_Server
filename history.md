@@ -774,3 +774,11 @@
 - Session 使用高熵不透明 token、三十天有效期、撤销时间和用户启用状态检查；没有增加浏览器 Cookie 或 Streamlit 登录界面。
 - PostgreSQL 16 的 upgrade/downgrade/upgrade、CHECK/UNIQUE、数据库级级联、两事务并发消费、Session 过期/撤销/停用和既有集成测试共 17 项通过；85 项离线测试通过。测试容器在验证后关闭，不保留数据。
 - 既有 Entra `tenant_id`、`external_object_id`、`external_subject` 字段保留，Email OTP 用户可保持 NULL。尚未连接 SMTP，也未发送真实邮件；没有修改科研 Agent、聊天或日报流程。
+
+## 2026-09-24 多用户架构改造 Task 11：SMTP OTP 邮件发送
+
+- 新增独立的 `EmailSender` 协议、`SmtpEmailSender` 传输实现和 `EmailOtpDeliveryService` 编排。OTP service 签发 challenge，发送器仅负责邮件传输，不创建或验证 User、Session。
+- SMTP 采用端口 465 的 `SMTP_SSL`、标准证书验证、EHLO、完整邮箱用户名认证和单次发送；配置在实际构造发送器时检查，`.env.example` 只有空凭据占位符。
+- 发送失败会向调用方传播安全的异常，由调用方数据库事务回滚 challenge 插入和旧 challenge 失效；发送成功后仍由调用方提交。已记录“邮件成功但数据库提交失败”时验证码不可用、需重新请求的权衡。
+- 新增只供人工显式执行的 SMTP smoke 脚本及服务器测试说明；脚本不创建数据库 challenge，也不打印验证码或密码。本次环境未配置真实 SMTP 凭据，未连接或发送真实邮件。
+- 模拟 SMTP 离线测试与真实 PostgreSQL fake sender 事务测试通过：99 项离线测试、19 项集成测试。未新增 migration，Alembic head 仍为 `0004_email_otp_auth_foundation`；没有修改 Streamlit 登录 UI、Cookie、User 自动注册、Session 创建或科研业务逻辑。
