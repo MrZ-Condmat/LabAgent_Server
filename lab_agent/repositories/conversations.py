@@ -53,11 +53,14 @@ class ConversationRepository:
         self,
         user_id: UUID,
         *,
+        conversation_type: ConversationType | None = None,
         include_archived: bool = False,
         limit: int = 50,
         offset: int = 0,
     ) -> list[Conversation]:
         statement = select(Conversation).where(Conversation.user_id == user_id)
+        if conversation_type is not None:
+            statement = statement.where(Conversation.conversation_type == conversation_type)
         if not include_archived:
             statement = statement.where(Conversation.archived_at.is_(None))
         statement = (

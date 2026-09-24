@@ -819,3 +819,10 @@
 - API 增加管理员用户列表、角色变更和启用状态接口；Streamlit 增加仅 admin 可见且独立校验权限的 Admin 页面。服务层再次读取数据库中的 actor，不信任客户端 role 或 user ID。
 - PostgreSQL 事务级 advisory lock 串行化 bootstrap、角色和启用状态变更；结合行锁、自保护和 active admin 计数，防止并发操作移除最后一个 active admin。管理员仍受私有 Conversation/Message 的原有 ownership 限制。
 - 未新增数据库 migration、环境变量或复杂权限表；Alembic head 保持 `0004_email_otp_auth_foundation`，未修改科研 Agent、聊天、日报、Dify iframe。140 项离线测试与 40 项真实 PostgreSQL 集成测试通过；一次性数据库容器已关闭并清除数据。
+
+## 2026-09-24 多用户架构改造 Task 16：聊天记录持久化
+
+- Overview、ArXiv Daily、Journal Daily 聊天接入现有 Conversation/Message PostgreSQL 模型及 ownership-safe repository；历史消息由数据库读取，`st.session_state` 仅保留当前聊天选择等临时 UI 状态。
+- ArXiv 聊天保存报告日期；Journal 聊天保存日期、Summary 或 journal slug/name。重开旧聊天时重新读取其原始共享报告；报告不可用时可读历史、禁止继续发送，页面选择变化不会改写旧聊天上下文。
+- 新聊天延迟到首条用户消息才创建；最近 20 条按活动时间排序。用户消息先提交，LLM 调用期间无数据库事务，成功后再单独提交助手消息；模型失败只保留用户消息。管理员同样只能读写自己的私人聊天。
+- 复用既有 `conversation_type`、`context_metadata`、`updated_at` 和加锁顺序追加逻辑，无 schema migration；Alembic head 仍为 `0004_email_otp_auth_foundation`。144 项离线测试及 43 项一次性 PostgreSQL 集成测试通过，新增手工 E2E 验收文档，未修改科研日报生成、认证或管理员管理逻辑。

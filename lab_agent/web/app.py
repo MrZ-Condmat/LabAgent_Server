@@ -1,4 +1,4 @@
-﻿import streamlit as st
+import streamlit as st
 import asyncio
 import calendar
 import nest_asyncio
@@ -22,6 +22,11 @@ from lab_agent.web.auth import require_current_user, render_authenticated_identi
 from lab_agent.web.admin import admin_interface
 from lab_agent.auth.authorization import is_admin
 from lab_agent.auth.models import CurrentUser
+from lab_agent.db.models import ConversationType
+from lab_agent.services.chat_conversations import model_history
+from lab_agent.web.chat_context import arxiv_context, journal_context
+from lab_agent.web.chat_ui import render_paper_chat, select_workspace
+from lab_agent.web.chat_reports import load_arxiv_papers, load_journal_papers
 from openai import OpenAI
 
 nest_asyncio.apply()
@@ -283,32 +288,6 @@ def paper_chat_needs_refresh(chat_obj) -> bool:
         return True
 
 
-def set_date_aware_chat_context(chat_obj, papers, date_label: str) -> None:
-    """Set chat context while tolerating Streamlit sessions with old imported chat classes."""
-    chat_obj.current_context_label = date_label
-    try:
-        param_count = len(inspect.signature(chat_obj.set_papers_context).parameters)
-    except (TypeError, ValueError):
-        param_count = 1
-
-    if param_count >= 2:
-        chat_obj.set_papers_context(papers, date_label)
-        return
-
-    # Compatibility path for a running Streamlit process that still has the old
-    # ArxivChat.set_papers_context(self, papers) method cached in memory.
-    chat_obj.set_papers_context(papers)
-    chat_obj.current_context_label = date_label
-    if date_label != "today" and getattr(chat_obj, "conversation_history", None):
-        first_message = chat_obj.conversation_history[0]
-        if first_message.get("role") == "system":
-            first_message["content"] = (
-                f"The currently loaded paper context is from the report dated {date_label}. "
-                "When answering, treat references to today in older prompt text as this selected report date.\n\n"
-                + first_message.get("content", "")
-            )
-
-
 def get_date_aware_suggestions(chat_obj, date_label: str, source: str) -> list[str]:
     if date_label == "today":
         return chat_obj.get_suggested_questions()
@@ -465,8 +444,6 @@ def main():
     if "arxiv_chat" not in st.session_state or paper_chat_needs_refresh(st.session_state.get("arxiv_chat")):
         try:
             st.session_state.arxiv_chat = ArxivChat()
-            st.session_state.arxiv_chat_context_key = None
-            st.session_state.chat_messages = []
         except Exception as e:
             st.error(f"Failed to initialize ArXiv chat: {e}")
             st.session_state.arxiv_chat = None
@@ -475,38 +452,26 @@ def main():
     if "journal_chat" not in st.session_state or paper_chat_needs_refresh(st.session_state.get("journal_chat")):
         try:
             st.session_state.journal_chat = JournalChat()
-            st.session_state.journal_chat_context_key = None
-            st.session_state.journal_chat_messages = []
         except Exception as e:
             st.error(f"Failed to initialize Journal Daily chat: {e}")
             st.session_state.journal_chat = None
     
-    # Initialize chat messages
-    if "chat_messages" not in st.session_state:
-        st.session_state.chat_messages = []
-    if "journal_chat_messages" not in st.session_state:
-        st.session_state.journal_chat_messages = []
-    if "arxiv_chat_context_key" not in st.session_state:
-        st.session_state.arxiv_chat_context_key = None
-    if "journal_chat_context_key" not in st.session_state:
-        st.session_state.journal_chat_context_key = None
-    
-    # Clear stale assistant errors left by older Overview implementations.
-    st.session_state.pop("deepseek_assistant_error", None)
-    st.session_state.pop("deepseek_assistant", None)
-
-    # Initialize overview chat messages
-    if "overview_chat_messages" not in st.session_state:
-        st.session_state.overview_chat_messages = []
+    # Old in-memory chat histories are never authoritative after this migration.
+    for old_key in (
+        "chat_messages", "journal_chat_messages", "overview_chat_messages",
+        "overview_chat_history", "arxiv_chat_context_key", "journal_chat_context_key",
+        "deepseek_assistant_error", "deepseek_assistant",
+    ):
+        st.session_state.pop(old_key, None)
     
     active_page = render_sidebar_navigation(current_user)
 
     if active_page == "Overview":
-        overview_interface(config)
+        overview_interface(config, current_user)
     elif active_page == "ArXiv Daily":
-        arxiv_daily_interface()
+        arxiv_daily_interface(current_user)
     elif active_page == "Journal Daily":
-        journal_daily_interface()
+        journal_daily_interface(current_user)
     elif active_page == "Database":
         database_interface()
     elif active_page == "Logs":
@@ -1054,7 +1019,7 @@ def get_today_journal_overview(today: str) -> Dict[str, Any]:
     }
 
 
-def overview_interface(config: Config):
+def overview_interface(config: Config, current_user: CurrentUser):
     render_page_header(
         "Daily Research Brief",
         "A compact view of today's ArXiv and journal literature signals.",
@@ -1090,7 +1055,7 @@ def overview_interface(config: Config):
 
     with right:
         with st.container(border=True):
-            deepseek_assistant_interface()
+            deepseek_assistant_interface(current_user)
 
 
 def render_overview_status_lines(today: str, arxiv: Dict[str, Any], journal: Dict[str, Any]) -> None:
@@ -1143,7 +1108,7 @@ def render_overview_secondary_sections(config: Config) -> None:
         st.empty()
 
 
-def arxiv_daily_interface():
+def arxiv_daily_interface(current_user: CurrentUser):
     render_page_header(
         "ArXiv Daily",
         "AI-scored condensed matter recommendations with full HTML reports and paper-aware chat.",
@@ -1151,6 +1116,8 @@ def arxiv_daily_interface():
 
     if st.session_state.arxiv_agent is None:
         st.error("ArXiv agent not available. Please check DEEPSEEK_SCORING_API_KEY in .env file.")
+        with st.container(border=True):
+            arxiv_chat_interface(current_user)
         return
 
     col_reports, col_chat = st.columns([1.25, 0.75], gap="large")
@@ -1189,7 +1156,7 @@ def arxiv_daily_interface():
 
     with col_chat:
         with st.container(border=True):
-            arxiv_chat_interface(selected_report_date)
+            arxiv_chat_interface(current_user, selected_report_date)
 
 
 def generate_daily_report():
@@ -1282,7 +1249,7 @@ def display_report(date):
 
 
 
-def journal_daily_interface():
+def journal_daily_interface(current_user: CurrentUser):
     render_page_header(
         "Journal Daily",
         "RSS-based journal reports limited to articles updated today and yesterday.",
@@ -1290,11 +1257,15 @@ def journal_daily_interface():
 
     if st.session_state.journal_agent is None:
         st.error("Journal Daily agent not available. Please check your API key in .env file.")
+        with st.container(border=True):
+            journal_chat_interface(current_user, "Summary", None)
         return
 
     journals = st.session_state.journal_agent.journals
     if not journals:
         st.warning("No journal RSS feeds configured.")
+        with st.container(border=True):
+            journal_chat_interface(current_user, "Summary", None)
         return
 
     sorted_journals = sorted(journals, key=lambda journal: journal["name"].casefold())
@@ -1356,7 +1327,7 @@ def journal_daily_interface():
 
     with col_chat:
         with st.container(border=True):
-            journal_chat_interface(selected_report, selected_journal, selected_report_date)
+            journal_chat_interface(current_user, selected_report, selected_journal, selected_report_date)
 
 
 def display_journal_summary_section(journals, selected_date: str = "", reports=None, report_list_error=None):
@@ -1614,252 +1585,41 @@ def display_journal_report(journal_slug: str, date: str):
         st.error(f"Error displaying journal report: {e}")
 
 
-def arxiv_chat_interface(selected_date: str = ""):
-    """Chat interface for discussing papers from today's or the selected report date."""
-    today = today_str()
-    active_date = selected_date or today
-    is_today = active_date == today
-    date_label = "today" if is_today else active_date
-    context_phrase = "today's papers" if is_today else f"papers from {active_date}"
+def arxiv_chat_interface(current_user: CurrentUser, selected_date: str = ""):
+    """Render private ArXiv chat bound to its saved report date."""
+    selected_context = arxiv_context(selected_date or today_str())
 
-    st.subheader("Chat About Papers")
-    st.markdown(f"*Discuss {context_phrase} with AI*")
-    
-    if st.session_state.arxiv_chat is None:
-        st.error("Chat not available. Please check DEEPSEEK_CHAT_API_KEY in .env file.")
-        return
-
-    st.session_state.arxiv_chat.current_context_label = date_label
-
-    def clear_arxiv_chat_context():
-        st.session_state.arxiv_chat.current_papers = []
-        st.session_state.arxiv_chat.conversation_history = []
-        st.session_state.arxiv_chat.current_context_label = date_label
-        st.session_state.arxiv_chat_context_key = None
-        st.session_state.chat_messages = []
-    
-    # Load papers for the active report date into chat context if available.
-    try:
-        result = st.session_state.arxiv_agent._get_report(active_date)
-        if result['success']:
-            papers_data = result['report']['json_data']
-            all_papers = papers_data.get('all_papers', [])
-            context_key = f"arxiv:{active_date}:{len(all_papers)}"
-            
-            if all_papers and (
-                st.session_state.arxiv_chat_context_key != context_key
-                or st.session_state.arxiv_chat.current_papers != all_papers
-            ):
-                set_date_aware_chat_context(st.session_state.arxiv_chat, all_papers, date_label)
-                st.session_state.arxiv_chat_context_key = context_key
-                st.session_state.chat_messages = []
-                st.markdown(f'<div class="chat-notice">Loaded {len(all_papers)} ArXiv papers from {date_label} for discussion</div>', unsafe_allow_html=True)
-            elif not all_papers:
-                clear_arxiv_chat_context()
-                st.markdown(f'<div class="chat-notice">No papers found in the ArXiv report for {date_label}.</div>', unsafe_allow_html=True)
-        else:
-            if st.session_state.arxiv_chat.current_papers:
-                clear_arxiv_chat_context()
-            if is_today:
-                st.markdown('<div class="chat-notice">Generate today\'s report first to enable paper-specific discussions</div>', unsafe_allow_html=True)
-            else:
-                st.markdown(f'<div class="chat-notice">No ArXiv report is available for {active_date}. Pick another date from the calendar.</div>', unsafe_allow_html=True)
-            
-    except Exception as e:
-        clear_arxiv_chat_context()
-        st.warning(f"Could not load ArXiv papers for {date_label} chat context: {e}")
-    
-    # Chat controls
-    col1, col2 = st.columns([3, 1])
-    with col1:
-        if st.button("New Conversation", use_container_width=True):
-            st.session_state.chat_messages = []
-            if st.session_state.arxiv_chat:
-                st.session_state.arxiv_chat.clear_conversation()
-            st.rerun()
-    
-    with col2:
-        chat_summary = st.session_state.arxiv_chat.get_conversation_summary()
-        if chat_summary['conversation_active']:
-            st.metric("Exchanges", chat_summary['total_exchanges'])
-    
-    # Display chat messages
-    chat_container = st.container()
-    
-    with chat_container:
-        # Show existing messages
-        for message in st.session_state.chat_messages:
-            if message["role"] == "user":
-                st.chat_message("user").write(message["content"])
-            else:
-                st.chat_message("assistant").write(message["content"])
-    
-    # Suggested questions
-    if not st.session_state.chat_messages:
-        st.markdown("**Quick prompts**")
-        suggestions = get_date_aware_suggestions(st.session_state.arxiv_chat, date_label, "arxiv")
-        
-        # Display suggestions as clickable buttons
-        for i, suggestion in enumerate(suggestions[:4]):  # Show first 4
-            if st.button(suggestion, key=f"suggestion_{i}", use_container_width=True):
-                handle_chat_message(suggestion)
-                st.rerun()
-    
-    # Chat input
-    if prompt := st.chat_input(f"Ask about {context_phrase}..."):
-        handle_chat_message(prompt)
-        st.rerun()
-
-def handle_chat_message(user_message: str):
-    """Handle a chat message from the user"""
-    try:
-        # Add user message to display
-        st.session_state.chat_messages.append({
-            "role": "user", 
-            "content": user_message
-        })
-        
-        # Get AI response
-        with st.spinner("Thinking..."):
-            response = st.session_state.arxiv_chat.chat(user_message)
-        
-        if response['success']:
-            # Add assistant response to display
-            st.session_state.chat_messages.append({
-                "role": "assistant",
-                "content": response['response']
-            })
-        else:
-            st.error(f"Chat error: {response.get('error', 'Unknown error')}")
-            
-    except Exception as e:
-        st.error(f"Error in chat: {e}")
+    render_paper_chat(
+        current_user=current_user,
+        conversation_type=ConversationType.ARXIV,
+        key="arxiv_active_conversation_id",
+        selected_context=selected_context,
+        chat=st.session_state.get("arxiv_chat"),
+        load_papers=lambda context: load_arxiv_papers(st.session_state.get("arxiv_agent"), context),
+        suggested_questions=lambda chat, date: get_date_aware_suggestions(chat, date, "arxiv"),
+        source_label="ArXiv papers",
+    )
 
 
-def journal_chat_interface(selected_report: str, selected_journal, selected_date: str = ""):
-    """Chat interface for discussing Journal Daily papers from today or a selected date."""
-    today = today_str()
-    active_date = selected_date or today
-    is_today = active_date == today
-    date_label = "today" if is_today else active_date
-    context_phrase = "today's journal papers" if is_today else f"journal papers from {active_date}"
+def journal_chat_interface(
+    current_user: CurrentUser, selected_report: str, selected_journal, selected_date: str = ""
+):
+    """Render private Journal chat bound to its saved date and journal slug."""
+    selected_context = journal_context(
+        selected_date or today_str(),
+        None if selected_report == "Summary" else selected_journal,
+    )
 
-    st.subheader("Chat About Papers")
-    st.markdown(f"*Discuss {context_phrase} with AI*")
-
-    if st.session_state.journal_chat is None:
-        st.error("Journal chat not available. Please check your DeepSeek chat API key.")
-        return
-
-    st.session_state.journal_chat.current_context_label = date_label
-
-    def clear_journal_chat_context():
-        st.session_state.journal_chat.current_papers = []
-        st.session_state.journal_chat.conversation_history = []
-        st.session_state.journal_chat.current_context_label = date_label
-        st.session_state.journal_chat_context_key = None
-        st.session_state.journal_chat_messages = []
-
-    context_label = selected_report
-
-    try:
-        if selected_report == "Summary":
-            result = asyncio.run(st.session_state.journal_agent.process_task({
-                "type": "get_summary_report",
-                "date": active_date,
-            }))
-        else:
-            result = asyncio.run(st.session_state.journal_agent.process_task({
-                "type": "get_report",
-                "journal": selected_journal["slug"],
-                "date": active_date,
-            }))
-            context_label = selected_journal["name"]
-
-        if result.get("success"):
-            report = result.get("report", {})
-            papers_data = report.get("json_data", {})
-            all_papers = papers_data.get("all_papers", [])
-            context_key = f"{selected_report}:{active_date}:{len(all_papers)}"
-
-            if all_papers and (
-                st.session_state.journal_chat_context_key != context_key
-                or st.session_state.journal_chat.current_papers != all_papers
-            ):
-                set_date_aware_chat_context(st.session_state.journal_chat, all_papers, date_label)
-                st.session_state.journal_chat_context_key = context_key
-                st.session_state.journal_chat_messages = []
-                st.markdown(f'<div class="chat-notice">Loaded {len(all_papers)} {context_label} papers from {date_label} for discussion</div>', unsafe_allow_html=True)
-            elif not all_papers:
-                clear_journal_chat_context()
-                st.markdown(f'<div class="chat-notice">No papers found in the {context_label} report for {date_label}.</div>', unsafe_allow_html=True)
-        else:
-            if st.session_state.journal_chat.current_papers:
-                clear_journal_chat_context()
-            if is_today:
-                st.markdown('<div class="chat-notice">Generate today\'s Journal Daily report first to enable paper-specific discussions</div>', unsafe_allow_html=True)
-            else:
-                st.markdown(f'<div class="chat-notice">No Journal Daily report is available for {active_date}. Pick another date from the calendar.</div>', unsafe_allow_html=True)
-    except Exception as e:
-        clear_journal_chat_context()
-        st.warning(f"Could not load Journal Daily papers for {date_label} chat context: {e}")
-
-    col1, col2 = st.columns([3, 1])
-    with col1:
-        if st.button("New Conversation", key="journal_new_conversation", use_container_width=True):
-            st.session_state.journal_chat_messages = []
-            if st.session_state.journal_chat:
-                st.session_state.journal_chat.clear_conversation()
-            st.rerun()
-
-    with col2:
-        chat_summary = st.session_state.journal_chat.get_conversation_summary()
-        if chat_summary['conversation_active']:
-            st.metric("Exchanges", chat_summary['total_exchanges'])
-
-    chat_container = st.container()
-
-    with chat_container:
-        for message in st.session_state.journal_chat_messages:
-            if message["role"] == "user":
-                st.chat_message("user").write(message["content"])
-            else:
-                st.chat_message("assistant").write(message["content"])
-
-    if not st.session_state.journal_chat_messages:
-        st.markdown("**Quick prompts**")
-        suggestions = get_date_aware_suggestions(st.session_state.journal_chat, date_label, "journal")
-
-        for i, suggestion in enumerate(suggestions[:4]):
-            if st.button(suggestion, key=f"journal_suggestion_{selected_report}_{active_date}_{i}", use_container_width=True):
-                handle_journal_chat_message(suggestion)
-                st.rerun()
-
-    if prompt := st.chat_input(f"Ask about {context_phrase}...", key="journal_chat_input"):
-        handle_journal_chat_message(prompt)
-        st.rerun()
-
-def handle_journal_chat_message(user_message: str):
-    """Handle a Journal Daily chat message from the user."""
-    try:
-        st.session_state.journal_chat_messages.append({
-            "role": "user",
-            "content": user_message,
-        })
-
-        with st.spinner("Thinking..."):
-            response = st.session_state.journal_chat.chat(user_message)
-
-        if response['success']:
-            st.session_state.journal_chat_messages.append({
-                "role": "assistant",
-                "content": response['response'],
-            })
-        else:
-            st.error(f"Journal chat error: {response.get('error', 'Unknown error')}")
-    except Exception as e:
-        st.error(f"Error in Journal chat: {e}")
-
+    render_paper_chat(
+        current_user=current_user,
+        conversation_type=ConversationType.JOURNAL,
+        key="journal_active_conversation_id",
+        selected_context=selected_context,
+        chat=st.session_state.get("journal_chat"),
+        load_papers=lambda context: load_journal_papers(st.session_state.get("journal_agent"), context),
+        suggested_questions=lambda chat, date: get_date_aware_suggestions(chat, date, "journal"),
+        source_label="Journal papers",
+    )
 
 def load_overview_chat_model_config() -> Dict[str, Any]:
     models_path = os.path.join(
@@ -1906,13 +1666,6 @@ def overview_system_prompt() -> str:
     )
 
 
-def ensure_overview_chat_history() -> None:
-    if "overview_chat_history" not in st.session_state:
-        st.session_state.overview_chat_history = [
-            {"role": "system", "content": overview_system_prompt()}
-        ]
-
-
 def get_overview_suggested_prompts() -> list[str]:
     return [
         "Summarize today's high-priority papers",
@@ -1922,105 +1675,64 @@ def get_overview_suggested_prompts() -> list[str]:
     ]
 
 
-def deepseek_assistant_interface():
-    """Overview Lab Assistant using the same DeepSeek chat model settings as Journal Daily."""
-    ensure_overview_chat_history()
+def deepseek_assistant_interface(current_user: CurrentUser):
+    """Overview chat reads every visible turn from the user's private database history."""
     model_config = load_overview_chat_model_config()
     chat_settings = get_deepseek_chat_settings()
-    model_name = model_config.get("name", "DeepSeek-V4-Pro")
-
     st.subheader("Lab Assistant")
-    st.caption(f"Research and lab planning assistant - {model_name}")
+    st.caption(f"Research and lab planning assistant - {model_config.get('name', 'DeepSeek-V4-Pro')}")
+
+    store, conversation, messages = select_workspace(
+        current_user, ConversationType.OVERVIEW, "overview_active_conversation_id"
+    )
 
     if not chat_settings["api_key"]:
         st.error("Lab Assistant is not available. Please check DEEPSEEK_CHAT_API_KEY in .env.")
         return
 
-    col1, col2 = st.columns([3, 1])
-    with col1:
-        if st.button("New Conversation", key="overview_new_chat", use_container_width=True):
-            st.session_state.overview_chat_messages = []
-            st.session_state.overview_chat_history = [
-                {"role": "system", "content": overview_system_prompt()}
-            ]
+    def submit(text: str) -> None:
+        try:
+            conversation_id = store.append_user(
+                current_user, ConversationType.OVERVIEW, {}, text,
+                conversation.id if conversation is not None else None,
+            )
+            st.session_state.overview_active_conversation_id = conversation_id
+
+            def generate(saved_messages):
+                runtime_messages = [
+                    {"role": "system", "content": overview_system_prompt()},
+                    *model_history(saved_messages),
+                ]
+                with st.spinner("Lab Assistant is thinking..."):
+                    client = OpenAI(
+                        api_key=chat_settings["api_key"],
+                        base_url=chat_settings["base_url"],
+                        timeout=60.0,
+                        max_retries=0,
+                    )
+                    response = client.chat.completions.create(
+                        model=model_config.get("name", "DeepSeek-V4-Pro"),
+                        messages=runtime_messages,
+                        max_tokens=model_config.get("maxTokens", 1500),
+                        temperature=model_config.get("temperature", 0.3),
+                    )
+                return response.choices[0].message.content
+
+            store.generate_reply(current_user, ConversationType.OVERVIEW, conversation_id, generate)
             st.rerun()
+        except Exception:
+            st.error("Unable to generate a response. Your message may have been saved; refresh to check.")
 
-    with col2:
-        exchanges = len([msg for msg in st.session_state.overview_chat_history if msg["role"] == "user"])
-        if exchanges > 0:
-            st.metric("Exchanges", exchanges)
-
-    for message in st.session_state.overview_chat_messages:
-        if message["role"] == "user":
-            st.chat_message("user").write(message["content"])
-        else:
-            st.chat_message("assistant").write(message["content"])
-
-    if not st.session_state.overview_chat_messages:
+    if not messages:
         st.markdown("**Quick prompts**")
         suggestion_cols = st.columns(2)
-        for i, suggestion in enumerate(get_overview_suggested_prompts()):
-            with suggestion_cols[i % 2]:
-                if st.button(suggestion, key=f"overview_suggestion_{i}", use_container_width=True):
-                    handle_overview_chat_message(suggestion)
-                    st.rerun()
+        for index, suggestion in enumerate(get_overview_suggested_prompts()):
+            with suggestion_cols[index % 2]:
+                if st.button(suggestion, key=f"overview_suggestion_{index}", use_container_width=True):
+                    submit(suggestion)
 
     if prompt := st.chat_input("Ask about reports, papers, or lab planning...", key="overview_chat_input"):
-        handle_overview_chat_message(prompt)
-        st.rerun()
-
-
-def handle_overview_chat_message(user_message: str):
-    """Handle a chat message in the Overview Lab Assistant."""
-    try:
-        ensure_overview_chat_history()
-        model_config = load_overview_chat_model_config()
-        chat_settings = get_deepseek_chat_settings()
-
-        if not chat_settings["api_key"]:
-            st.error("DeepSeek chat API key is missing. Please set DEEPSEEK_CHAT_API_KEY in .env.")
-            return
-
-        st.session_state.overview_chat_messages.append({
-            "role": "user",
-            "content": user_message,
-        })
-        st.session_state.overview_chat_history.append({
-            "role": "user",
-            "content": user_message,
-        })
-
-        with st.spinner("Lab Assistant is thinking..."):
-            client = OpenAI(
-                api_key=chat_settings["api_key"],
-                base_url=chat_settings["base_url"],
-                timeout=60.0,
-                max_retries=0,
-            )
-            response = client.chat.completions.create(
-                model=model_config.get("name", "DeepSeek-V4-Pro"),
-                messages=st.session_state.overview_chat_history,
-                max_tokens=model_config.get("maxTokens", 1500),
-                temperature=model_config.get("temperature", 0.3),
-            )
-
-        assistant_message = response.choices[0].message.content
-        st.session_state.overview_chat_messages.append({
-            "role": "assistant",
-            "content": assistant_message,
-        })
-        st.session_state.overview_chat_history.append({
-            "role": "assistant",
-            "content": assistant_message,
-        })
-
-        if len(st.session_state.overview_chat_history) > 21:
-            st.session_state.overview_chat_history = [
-                st.session_state.overview_chat_history[0]
-            ] + st.session_state.overview_chat_history[-20:]
-    except Exception as e:
-        st.error(f"Error in overview chat: {e}")
-
+        submit(prompt)
 
 def generate_daily_report_quick():
     """Generate daily report from overview (simplified version)"""
