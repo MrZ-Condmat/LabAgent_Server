@@ -58,6 +58,10 @@ class Config:
         self.auth_otp_request_window_seconds = int(os.getenv("AUTH_OTP_REQUEST_WINDOW_SECONDS", "600"))
         self.auth_session_hmac_secret = os.getenv("AUTH_SESSION_HMAC_SECRET")
         self.auth_session_ttl_days = int(os.getenv("AUTH_SESSION_TTL_DAYS", "30"))
+        self.auth_cookie_name = os.getenv("AUTH_COOKIE_NAME", "labagent_session")
+        self.auth_cookie_secure = os.getenv("AUTH_COOKIE_SECURE", "true").strip().lower() in {
+            "1", "true", "yes", "on"
+        }
 
         # SMTP is validated only when the optional email transport is constructed.
         self.smtp_host = os.getenv("SMTP_HOST", "mails.tsinghua.edu.cn")

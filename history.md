@@ -790,3 +790,11 @@
 - 错误验证码沿用正常失败结果，调用方可提交 `failed_attempts`，且不会创建 User 或 Session。成功路径的 OTP 消费、User 创建或更新、Session 创建由调用方在同一个事务内提交；Session 创建失败时整体回滚。
 - PostgreSQL 16 上 26 项集成测试通过，包括首次建号、既有管理员、停用用户、错误验证码计数、事务回滚及两个独立 Session 并发消费同一 OTP 时仅有一个成功和一个 UserSession。104 项离线测试通过。
 - 没有新增 migration，Alembic head 仍为 `0004_email_otp_auth_foundation`；没有修改 SMTP 发送、Streamlit UI、浏览器 Cookie 或科研业务逻辑，也没有发送真实邮件。
+
+## 2026-09-24 多用户架构改造 Task 13：FastAPI Auth Gateway
+
+- 新增独立 FastAPI 认证网关：`POST /auth/request-code`、`POST /auth/verify-code`、`GET /auth/me`、`POST /auth/logout` 与 `GET /healthz`。路由复用现有 OTP、邮件发送、User 和 Session service，不复制认证业务逻辑。
+- 登录成功仅通过 `Set-Cookie` 交付不透明 Session token；Cookie 使用 HttpOnly、SameSite=Lax、Path=/、host-only，Secure 默认为 true，Expires/Max-Age 来自实际 UserSession 过期时间。JSON 响应仅包含安全的用户字段。
+- 错误验证码返回 HTTP 401 前正常提交 `failed_attempts`；成功登录将 OTP 消费、User 更新或创建、UserSession 创建放在一个请求事务内。`/auth/me` 验证持久 Session，退出时撤销数据库 Session 并删除 Cookie。
+- 新增运行与同主机 Cookie 说明、明确的 Pydantic 输入输出 schema、FastAPI/Uvicorn/httpx 依赖以及 fake SMTP 的 TestClient 与 PostgreSQL 集成测试；116 项离线测试和 31 项集成测试通过，pytest 未发送真实邮件。
+- 没有新增 migration，Alembic head 仍为 `0004_email_otp_auth_foundation`；没有修改 Streamlit、Nginx、HTTPS、科研业务或现有未跟踪脚本。
