@@ -832,3 +832,7 @@
 - Recent Conversations 中每条聊天增加 Delete 与二次确认；取消时无数据库变更，确认后经 `ChatConversationService` 和 ownership-safe `ConversationRepository` 永久删除一条 Conversation。
 - PostgreSQL `ON DELETE CASCADE` 自动删除其 Messages；删除当前聊天后进入空白草稿，删除其他聊天不影响当前会话。普通用户和管理员均只能删除自己的私人聊天，共享日报文件不受影响。
 - 无 schema migration，Alembic head 仍为 `0004_email_otp_auth_foundation`；新增删除、级联、跨用户/管理员隔离和三类聊天 UI 状态测试。149 项离线测试与 47 项一次性 PostgreSQL 集成测试通过。
+
+## 2026-09-24 部署脚本网页重启修复
+
+- `deploy_to_server.ps1 -RestartWeb` 现在将已有的 `CONDA_EXE` 与环境名传给 `scripts/run_web_app.sh`，避免服务器 Conda 不在 PATH 时网页重启失败；未修改应用、数据库或日报逻辑。

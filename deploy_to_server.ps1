@@ -125,8 +125,9 @@ try {
     }
 
     if ($RestartWeb) {
+        $RemoteLines += "if [ ! -x `"`$CONDA_EXE`" ]; then echo 'Conda executable not found; pass -CondaExe /path/to/conda.' >&2; exit 1; fi"
         $RemoteLines += "pkill -f 'streamlit run lab_agent/web/app.py' || true"
-        $RemoteLines += "nohup bash scripts/run_web_app.sh > logs/web_app.log 2>&1 &"
+        $RemoteLines += "CONDA_EXE=`"`$CONDA_EXE`" LABAGENT_CONDA_ENV=`"`$CONDA_ENV`" nohup bash scripts/run_web_app.sh > logs/web_app.log 2>&1 &"
         $RemoteLines += "echo `"Web app restart requested. Check logs/web_app.log on the server.`""
     }
 
