@@ -6,6 +6,7 @@ from .errors import OwnedResourceNotFoundError
 from .messages import MessageRepository
 from .users import UserRepository
 from .user_sessions import UserSessionRepository
+from .admin_users import AdminUserRepository
 
 __all__ = [
     "ConversationRepository",
@@ -14,4 +15,5 @@ __all__ = [
     "OwnedResourceNotFoundError",
     "UserRepository",
     "UserSessionRepository",
+    "AdminUserRepository",
 ]

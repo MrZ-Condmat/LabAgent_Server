@@ -19,6 +19,11 @@ from .email_otp_authentication import (
     EmailOtpAuthenticationResult,
     EmailOtpAuthenticationService,
 )
+from .authorization import AdminAuthorizationError, is_admin, require_admin
+from .admin_users import (
+    AdminBootstrapError, AdminSafetyError, AdminUserNotFoundError,
+    AdminUserService, AdminUserSummary, BootstrapAdminService,
+)
 
 __all__ = [
     "AuthenticationError",
@@ -45,4 +50,13 @@ __all__ = [
     "EmailOtpAuthenticationAttempt",
     "EmailOtpAuthenticationResult",
     "EmailOtpAuthenticationService",
+    "AdminAuthorizationError",
+    "is_admin",
+    "require_admin",
+    "AdminBootstrapError",
+    "AdminSafetyError",
+    "AdminUserNotFoundError",
+    "AdminUserService",
+    "AdminUserSummary",
+    "BootstrapAdminService",
 ]

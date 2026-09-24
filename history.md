@@ -812,3 +812,10 @@
 - 继续使用本地 Git 和现有 SCP/SSH 同步脚本，不要求服务器运行目录建立 Git 仓库。
 - 部署脚本现在先确认本地 Git 状态与提交号；完成所有请求的部署步骤后，将提交号写入服务器 `logs/deployed_revision.txt`。使用 `-AllowDirty` 时标记为 `-dirty`，避免把未提交文件误认为纯净提交。
 - 此改动只涉及部署脚本和文档，不修改认证、数据库、日报或网页逻辑；尚未向服务器部署这次脚本改动。
+
+## 2026-09-24 多用户架构改造 Task 15：RBAC 与管理员用户管理
+
+- 复用现有 `UserRole` 和从持久 Session 解析的 `CurrentUser`，新增集中式 admin authorization、用户管理 repository/service，以及首个管理员 bootstrap CLI。首次 OTP 登录仍创建 active `user`，已有用户角色保持不变。
+- API 增加管理员用户列表、角色变更和启用状态接口；Streamlit 增加仅 admin 可见且独立校验权限的 Admin 页面。服务层再次读取数据库中的 actor，不信任客户端 role 或 user ID。
+- PostgreSQL 事务级 advisory lock 串行化 bootstrap、角色和启用状态变更；结合行锁、自保护和 active admin 计数，防止并发操作移除最后一个 active admin。管理员仍受私有 Conversation/Message 的原有 ownership 限制。
+- 未新增数据库 migration、环境变量或复杂权限表；Alembic head 保持 `0004_email_otp_auth_foundation`，未修改科研 Agent、聊天、日报、Dify iframe。140 项离线测试与 40 项真实 PostgreSQL 集成测试通过；一次性数据库容器已关闭并清除数据。

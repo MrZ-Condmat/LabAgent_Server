@@ -19,6 +19,9 @@ from lab_agent.tools.arxiv_chat import ArxivChat
 from lab_agent.tools.journal_chat import JournalChat
 from lab_agent.tools.highlights_report_generator import HighlightsReportGenerator
 from lab_agent.web.auth import require_current_user, render_authenticated_identity
+from lab_agent.web.admin import admin_interface
+from lab_agent.auth.authorization import is_admin
+from lab_agent.auth.models import CurrentUser
 from openai import OpenAI
 
 nest_asyncio.apply()
@@ -32,12 +35,15 @@ NAV_ITEMS = [
 ]
 
 
-def render_sidebar_navigation() -> str:
+def render_sidebar_navigation(current_user: CurrentUser) -> str:
+    visible_items = [*NAV_ITEMS]
+    if is_admin(current_user):
+        visible_items.append("Admin")
     if "active_nav" not in st.session_state:
         st.session_state.active_nav = "Overview"
 
     current = st.session_state.active_nav
-    if current not in NAV_ITEMS:
+    if current not in visible_items:
         current = "Overview"
         st.session_state.active_nav = current
 
@@ -54,7 +60,7 @@ def render_sidebar_navigation() -> str:
             unsafe_allow_html=True,
         )
 
-        for item in NAV_ITEMS:
+        for item in visible_items:
             if item == current:
                 st.markdown(
                     f'<div class="nav-card nav-card-active"><span class="nav-dot"></span><span>{item}</span></div>',
@@ -493,7 +499,7 @@ def main():
     if "overview_chat_messages" not in st.session_state:
         st.session_state.overview_chat_messages = []
     
-    active_page = render_sidebar_navigation()
+    active_page = render_sidebar_navigation(current_user)
 
     if active_page == "Overview":
         overview_interface(config)
@@ -505,6 +511,8 @@ def main():
         database_interface()
     elif active_page == "Logs":
         logs_interface()
+    elif active_page == "Admin":
+        admin_interface(current_user, render_page_header)
 
 
 def database_interface():
