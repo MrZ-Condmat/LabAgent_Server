@@ -24,6 +24,19 @@ See [docs/BETA_POSTGRES.md](docs/BETA_POSTGRES.md) for provisioning, Alembic
 initialization, persistence verification, and safety rules. In particular,
 never use `docker compose down -v` for the Beta database.
 
+Create a logical custom-format backup and perform a restore drill in a separate
+database with:
+
+```bash
+bash scripts/backup_beta_postgres.sh
+bash scripts/restore_beta_postgres.sh /path/to/backup.dump \
+  --target-db labagent_restore_test
+```
+
+Backups default to `/data/zmr/labagent_backups/postgres` and include SHA256 and
+non-sensitive JSON metadata. The restore script always rejects the current
+Beta database as its target.
+
 `compose.integration.yml` remains a separate PostgreSQL 16 database backed by
 `tmpfs` for destructive integration tests. It is not a Beta data store.
 

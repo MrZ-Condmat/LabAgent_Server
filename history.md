@@ -844,3 +844,10 @@
 - 新增独立的 `compose.beta-postgres.yml`：使用服务器已有的 `postgres:15-alpine`、仅绑定 `127.0.0.1:55432`、稳定 named volume `labagent_postgres_data`、`restart: unless-stopped` 和 `pg_isready` 健康检查。
 - 新增安全的 Beta PostgreSQL 生命周期脚本与服务器私有配置模板；真实密码和 `DATABASE_URL` 不进入 Git，脚本不会自动拉取镜像，也不提供删除 volume 的命令。
 - 增加首次 Alembic 初始化和 stop/start 持久性人工验收文档。现有 PostgreSQL 16 `tmpfs` integration Compose 保持一次性测试语义；未新增 migration，未迁移临时测试数据，也未实现备份、systemd 或应用部署改造。
+
+## 2026-09-28 Beta Task A2：PostgreSQL Backup / Restore
+
+- 新增 Beta PostgreSQL logical backup 脚本：通过容器内 `pg_dump -Fc` 生成时间戳 `.dump`，使用临时文件和原子重命名避免残留不完整备份，并以 `pg_restore --list` 验证 archive。
+- 每个备份附带 SHA256 sidecar 和不含凭据的 JSON manifest，记录数据库名、UTC 时间、PostgreSQL 版本、Alembic revision、文件大小与 checksum；默认保存在源码树之外的 `/data/zmr/labagent_backups/postgres`，权限为目录 `700`、文件 `600`。
+- 新增安全 restore drill：只允许恢复到不同名称的数据库，默认拒绝已存在目标，`--replace-existing` 仍禁止源 Beta DB；失败时只清理本次新建目标，成功后仅报告 Alembic revision 与 users/conversations/messages 数量。
+- 未增加自动备份、retention、服务器定时任务、migration 或业务代码修改；真实服务器 backup/restore 留待人工验收。

@@ -146,7 +146,81 @@ stopped it. The actual reboot test belongs to the final Beta lifecycle E2E.
 ## Data and backup boundary
 
 The named volume stores PostgreSQL physical data under Docker's persistent root
-(`/data/tools/docker` on the target server). Future backups must use logical
-PostgreSQL tools such as `pg_dump` and `pg_restore`; Beta Task A2 defines and
-tests that workflow. This task does not migrate data from the disposable Task
-16 test database and does not implement backup automation.
+(`/data/tools/docker` on the target server). Logical backups use PostgreSQL's
+custom archive format and remain outside the source tree. This infrastructure
+does not migrate data from the disposable Task 16 test database.
+
+## Logical backup
+
+The backup script uses `pg_dump -Fc` inside the running PostgreSQL 15 container,
+so the host does not need PostgreSQL client tools. By default it writes to the
+server-only directory `/data/zmr/labagent_backups/postgres`:
+
+```bash
+cd /data/zmr/projects/labAgent_Server
+bash scripts/backup_beta_postgres.sh
+```
+
+Override the server-only paths when necessary:
+
+```bash
+LABAGENT_POSTGRES_ENV_FILE=/secure/path/postgres.env \
+LABAGENT_POSTGRES_BACKUP_DIR=/secure/path/backups \
+  bash scripts/backup_beta_postgres.sh
+```
+
+Each successful backup creates three mode-`600` files under a mode-`700`
+directory:
+
+```text
+<database>_YYYYMMDD_HHMMSS.dump
+<database>_YYYYMMDD_HHMMSS.dump.sha256
+<database>_YYYYMMDD_HHMMSS.dump.json
+```
+
+The script writes the dump to a temporary file, requires `pg_dump` success,
+checks that it is nonempty, validates it with `pg_restore --list`, and then
+renames it into place. Failed or partial backups are removed. The JSON manifest
+contains the database name, UTC timestamp, PostgreSQL version, Alembic
+revision, size, filename, and SHA256. It contains no password or URL.
+
+Backups are retained until an operator removes them. This task deliberately
+does not implement retention or automatic deletion.
+
+## Restore drill
+
+Restore into a new, separate database; never use the current value of
+`POSTGRES_DB` as the target:
+
+```bash
+bash scripts/restore_beta_postgres.sh \
+  /data/zmr/labagent_backups/postgres/labagent_YYYYMMDD_HHMMSS.dump \
+  --target-db labagent_restore_test
+```
+
+The restore script validates the custom archive, verifies its `.sha256`
+sidecar when present, creates an empty target database with `template0`, and
+runs `pg_restore --no-owner --no-privileges --exit-on-error`. It then reports
+the restored Alembic revision and row counts for `users`, `conversations`, and
+`messages` without printing business data.
+
+Safety rules:
+
+- The target name must contain only letters, digits, and underscores.
+- A target equal to the source Beta database is always rejected.
+- An existing target is rejected unless `--replace-existing` is explicit.
+- `--replace-existing` can never override the source-database protection.
+- Restore failure removes only the target database created by that invocation.
+- Neither script changes the named volume or application `DATABASE_URL`.
+
+Compare the manifest and restored row counts with the source database. After a
+successful drill, manually remove only the confirmed restore-test database:
+
+```bash
+docker exec labagent-postgres \
+  dropdb -U labagent labagent_restore_test
+```
+
+Before running cleanup, verify that the name is not the `POSTGRES_DB` value in
+the private environment file. Never run `dropdb` against the current Beta
+database.
