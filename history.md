@@ -862,3 +862,10 @@
 - 新增 `LABAGENT_ENV_FILE` 和统一 dotenv 解析：`explicit config_path > LABAGENT_ENV_FILE > project .env`，已有 process environment 继续通过 `override=False` 保持最高值优先级；显式 external file 缺失时明确失败。
 - 新增只含占位符的 `config/labagent.env.example` 和不输出 secret 的 runtime validator，检查长期 Beta 所需数据库、认证、SMTP、LLM、URL、端口、布尔值、时区及 placeholder/HMAC 长度。
 - Streamlit launcher 改用与 FastAPI、Streamlit 应用和日报相同的 Python `Config` 解析 host/port，保留本地 project `.env`、process override 和 CRLF 兼容；未修改认证、数据库、日报业务逻辑或 systemd/deployment。
+
+## 2026-09-28 Beta Task B2：FastAPI + Streamlit systemd 服务基础
+
+- 新增 system-level `labagent-auth.service` 与 `labagent-web.service` 模板；两者以 `zmr:zmr` 运行，使用 B1 canonical `LABAGENT_ENV_FILE`，启动前验证配置并等待 PostgreSQL `SELECT 1` 成功，失败后自动重启，日志进入 journald。
+- 新增安全的数据库 readiness helper 和 systemd 安装脚本；安装脚本只检查、复制、`daemon-reload` 和 enable，不启动或停止服务、不处理旧 nohup 进程、不重启服务器。
+- `deploy_to_server.ps1 -RestartWeb` 在检测到 systemd Web unit 后会于 `pkill`/`nohup` 前失败，避免 systemd 与 legacy restart 争抢进程；Phase C 前使用无 restart 的代码同步，再人工重启两个服务。
+- 增加安装、人工 cutover、health、journal、生命周期和手工回滚文档；服务器 boot recovery 验证明确推迟到 Phase F。未连接服务器，未执行 systemctl，未修改数据库、认证、聊天、日报或科研业务。

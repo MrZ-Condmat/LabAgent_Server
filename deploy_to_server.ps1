@@ -125,6 +125,20 @@ try {
     }
 
     if ($RestartWeb) {
+        $RemoteLines += 'WEB_SYSTEMD_MANAGED=0'
+        $RemoteLines += 'if [ -f /etc/systemd/system/labagent-web.service ]; then'
+        $RemoteLines += '    WEB_SYSTEMD_MANAGED=1'
+        $RemoteLines += 'elif command -v systemctl >/dev/null 2>&1; then'
+        $RemoteLines += '    WEB_UNIT_LOAD_STATE="$(systemctl show labagent-web.service --property=LoadState --value 2>/dev/null || true)"'
+        $RemoteLines += '    if [ -n "$WEB_UNIT_LOAD_STATE" ] && [ "$WEB_UNIT_LOAD_STATE" != "not-found" ]; then'
+        $RemoteLines += '        WEB_SYSTEMD_MANAGED=1'
+        $RemoteLines += '    fi'
+        $RemoteLines += 'fi'
+        $RemoteLines += 'if [ "$WEB_SYSTEMD_MANAGED" -eq 1 ]; then'
+        $RemoteLines += "    echo 'LabAgent Web is managed by systemd. Legacy -RestartWeb is disabled.' >&2"
+        $RemoteLines += "    echo 'Deploy without -RestartWeb and restart the systemd services explicitly.' >&2"
+        $RemoteLines += '    exit 1'
+        $RemoteLines += 'fi'
         $RemoteLines += "if [ ! -x `"`$CONDA_EXE`" ]; then echo 'Conda executable not found; pass -CondaExe /path/to/conda.' >&2; exit 1; fi"
         $RemoteLines += "if ! `"`$CONDA_EXE`" run -n `"`$CONDA_ENV`" python -c 'import streamlit' >/dev/null 2>&1; then echo 'Conda environment or Streamlit is unavailable; old Web process was left running.' >&2; exit 1; fi"
         $RemoteLines += "if ! command -v curl >/dev/null 2>&1; then echo 'curl is required for the Web health check; old Web process was left running.' >&2; exit 1; fi"

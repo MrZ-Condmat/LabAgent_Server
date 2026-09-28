@@ -255,3 +255,41 @@ Useful options:
 Use `-InstallDeps` after changing `requirements.txt`. Use `-AllowDirty` only when you intentionally want to deploy uncommitted local files.
 
 The deployment script restores execute permission on `scripts/*.sh` after extraction. The Cron examples also invoke the daily script through `/usr/bin/bash`, so a missing execute bit cannot prevent the scheduled command from starting.
+
+## Long-term Beta systemd services
+
+The repository includes system-level unit templates for the FastAPI auth
+gateway and Streamlit Web application:
+
+```text
+config/systemd/labagent-auth.service
+config/systemd/labagent-web.service
+```
+
+Both run as `zmr`, load the canonical B1 configuration through
+`LABAGENT_ENV_FILE=/data/zmr/projects/labagent_runtime/labagent.env`, validate
+configuration, wait for PostgreSQL with `SELECT 1`, restart after failure, and
+write logs to journald. Install and enable them without starting services:
+
+```bash
+cd /data/zmr/projects/labAgent_Server
+sudo bash scripts/install_beta_systemd.sh
+```
+
+After installation, deploy code without `-RestartWeb`, then explicitly restart
+the services during the approved maintenance window:
+
+```powershell
+.\deploy_to_server.ps1
+```
+
+```bash
+sudo systemctl restart labagent-auth.service
+sudo systemctl restart labagent-web.service
+```
+
+The legacy `-RestartWeb` path fails safely when `labagent-web.service` is
+installed, before it can run `pkill` or start a competing `nohup` process.
+Installation, manual cutover, health checks, journal inspection, and rollback
+are documented in `docs/BETA_SYSTEMD.md`. B2 does not require or perform a
+server reboot test; boot recovery validation is deferred to Phase F.

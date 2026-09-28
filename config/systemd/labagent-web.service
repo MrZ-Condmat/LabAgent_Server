@@ -1,0 +1,27 @@
+[Unit]
+Description=LabAgent Streamlit Web
+Wants=network-online.target docker.service labagent-auth.service
+After=network-online.target docker.service labagent-auth.service
+
+[Service]
+Type=simple
+User=zmr
+Group=zmr
+WorkingDirectory=/data/zmr/projects/labAgent_Server
+Environment=HOME=/home/zmr
+Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+Environment=LABAGENT_PROJECT_ROOT=/data/zmr/projects/labAgent_Server
+Environment=LABAGENT_ENV_FILE=/data/zmr/projects/labagent_runtime/labagent.env
+Environment=CONDA_EXE=/home/zmr/miniforge3/bin/conda
+Environment=LABAGENT_CONDA_ENV=labagent_server
+ExecStartPre=/data/zmr/conda_envs/labagent_server/bin/python /data/zmr/projects/labAgent_Server/scripts/validate_runtime_config.py
+ExecStartPre=/data/zmr/conda_envs/labagent_server/bin/python /data/zmr/projects/labAgent_Server/scripts/wait_for_database.py
+ExecStart=/usr/bin/bash /data/zmr/projects/labAgent_Server/scripts/run_web_app.sh
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
