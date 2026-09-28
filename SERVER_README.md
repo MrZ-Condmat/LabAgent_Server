@@ -6,6 +6,27 @@ This folder is prepared for Linux deployment at:
 /data/zmr/projects/labAgent_Server
 ```
 
+## Persistent Beta PostgreSQL
+
+Long-term Beta PostgreSQL uses `compose.beta-postgres.yml`, the local
+`postgres:15-alpine` image, and the stable named volume
+`labagent_postgres_data`. It binds only to `127.0.0.1:55432` by default and
+uses server-only credentials from `/data/zmr/labagent_runtime/postgres.env`.
+
+```bash
+bash scripts/manage_beta_postgres.sh start
+bash scripts/manage_beta_postgres.sh health
+bash scripts/manage_beta_postgres.sh status
+bash scripts/manage_beta_postgres.sh stop
+```
+
+See [docs/BETA_POSTGRES.md](docs/BETA_POSTGRES.md) for provisioning, Alembic
+initialization, persistence verification, and safety rules. In particular,
+never use `docker compose down -v` for the Beta database.
+
+`compose.integration.yml` remains a separate PostgreSQL 16 database backed by
+`tmpfs` for destructive integration tests. It is not a Beta data store.
+
 It includes source code, `.env`, and existing `reports/`. It intentionally does not include the Windows virtual environment, `.git`, or old local logs.
 
 ## First Setup With Conda

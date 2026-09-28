@@ -838,3 +838,9 @@
 - `deploy_to_server.ps1 -RestartWeb` 现在将已有的 `CONDA_EXE` 与环境名传给 `scripts/run_web_app.sh`，避免服务器 Conda 不在 PATH 时网页重启失败；未修改应用、数据库或日报逻辑。
 - 补充 Miniforge 自动发现、停止旧网页前的 Conda/环境检查，以及新进程的本机健康检查；启动失败会显示网页日志、返回非零状态并保留旧 `deployed_revision.txt`。部署脚本测试使用假 Conda，不连接服务器或真实服务。
 - 修复服务器部署后 Web 绑定地址失败：从 CRLF 格式 `.env` 读取的 `STREAMLIT_HOST`/`STREAMLIT_PORT` 会残留回车字符，启动脚本现移除行尾回车，并增加回归测试。
+
+## 2026-09-28 Beta Task A1：持久化 PostgreSQL 基础设施
+
+- 新增独立的 `compose.beta-postgres.yml`：使用服务器已有的 `postgres:15-alpine`、仅绑定 `127.0.0.1:55432`、稳定 named volume `labagent_postgres_data`、`restart: unless-stopped` 和 `pg_isready` 健康检查。
+- 新增安全的 Beta PostgreSQL 生命周期脚本与服务器私有配置模板；真实密码和 `DATABASE_URL` 不进入 Git，脚本不会自动拉取镜像，也不提供删除 volume 的命令。
+- 增加首次 Alembic 初始化和 stop/start 持久性人工验收文档。现有 PostgreSQL 16 `tmpfs` integration Compose 保持一次性测试语义；未新增 migration，未迁移临时测试数据，也未实现备份、systemd 或应用部署改造。
