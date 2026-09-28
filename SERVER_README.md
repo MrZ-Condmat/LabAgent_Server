@@ -11,7 +11,8 @@ This folder is prepared for Linux deployment at:
 Long-term Beta PostgreSQL uses `compose.beta-postgres.yml`, the local
 `postgres:15-alpine` image, and the stable named volume
 `labagent_postgres_data`. It binds only to `127.0.0.1:55432` by default and
-uses server-only credentials from `/data/zmr/labagent_runtime/postgres.env`.
+uses server-only credentials from
+`/data/zmr/projects/labagent_runtime/postgres.env`.
 
 ```bash
 bash scripts/manage_beta_postgres.sh start
@@ -33,9 +34,9 @@ bash scripts/restore_beta_postgres.sh /path/to/backup.dump \
   --target-db labagent_restore_test
 ```
 
-Backups default to `/data/zmr/labagent_backups/postgres` and include SHA256 and
-non-sensitive JSON metadata. The restore script always rejects the current
-Beta database as its target.
+Backups default to `/data/zmr/projects/labagent_backups/postgres` and include
+SHA256 and non-sensitive JSON metadata. The restore script always rejects the
+current Beta database as its target.
 
 `compose.integration.yml` remains a separate PostgreSQL 16 database backed by
 `tmpfs` for destructive integration tests. It is not a Beta data store.

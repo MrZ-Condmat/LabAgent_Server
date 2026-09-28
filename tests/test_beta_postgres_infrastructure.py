@@ -63,7 +63,7 @@ def test_management_script_has_safe_lifecycle_only():
 
 
 def test_management_script_uses_external_env_without_secret_output():
-    assert "/data/zmr/labagent_runtime/postgres.env" in MANAGER
+    assert "/data/zmr/projects/labagent_runtime/postgres.env" in MANAGER
     assert "LABAGENT_POSTGRES_ENV_FILE" in MANAGER
     assert '--env-file "$ENV_FILE"' in MANAGER
     assert '"$value" == "CHANGE_ME"' in MANAGER

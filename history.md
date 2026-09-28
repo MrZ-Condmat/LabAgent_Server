@@ -848,6 +848,11 @@
 ## 2026-09-28 Beta Task A2：PostgreSQL Backup / Restore
 
 - 新增 Beta PostgreSQL logical backup 脚本：通过容器内 `pg_dump -Fc` 生成时间戳 `.dump`，使用临时文件和原子重命名避免残留不完整备份，并以 `pg_restore --list` 验证 archive。
-- 每个备份附带 SHA256 sidecar 和不含凭据的 JSON manifest，记录数据库名、UTC 时间、PostgreSQL 版本、Alembic revision、文件大小与 checksum；默认保存在源码树之外的 `/data/zmr/labagent_backups/postgres`，权限为目录 `700`、文件 `600`。
+- 每个备份附带 SHA256 sidecar 和不含凭据的 JSON manifest，记录数据库名、UTC 时间、PostgreSQL 版本、Alembic revision、文件大小与 checksum；默认保存在源码树之外的 `/data/zmr/projects/labagent_backups/postgres`，权限为目录 `700`、文件 `600`。
 - 新增安全 restore drill：只允许恢复到不同名称的数据库，默认拒绝已存在目标，`--replace-existing` 仍禁止源 Beta DB；失败时只清理本次新建目标，成功后仅报告 Alembic revision 与 users/conversations/messages 数量。
 - 未增加自动备份、retention、服务器定时任务、migration 或业务代码修改；真实服务器 backup/restore 留待人工验收。
+
+## 2026-09-28 统一 Long-term Beta 服务器目录
+
+- 将 PostgreSQL 私有运行配置默认路径统一为 `/data/zmr/projects/labagent_runtime/postgres.env`，将 logical backup 默认目录统一为 `/data/zmr/projects/labagent_backups/postgres`。
+- `LABAGENT_POSTGRES_ENV_FILE` 与 `LABAGENT_POSTGRES_BACKUP_DIR` override 机制及优先级保持不变；未修改 Compose、数据库 schema、Alembic、备份恢复逻辑或业务代码。

@@ -2,8 +2,8 @@
 set -euo pipefail
 umask 077
 
-ENV_FILE="${LABAGENT_POSTGRES_ENV_FILE:-/data/zmr/labagent_runtime/postgres.env}"
-BACKUP_DIR="${LABAGENT_POSTGRES_BACKUP_DIR:-/data/zmr/labagent_backups/postgres}"
+ENV_FILE="${LABAGENT_POSTGRES_ENV_FILE:-/data/zmr/projects/labagent_runtime/postgres.env}"
+BACKUP_DIR="${LABAGENT_POSTGRES_BACKUP_DIR:-/data/zmr/projects/labagent_backups/postgres}"
 CONTAINER="labagent-postgres"
 
 TEMP_DUMP=""

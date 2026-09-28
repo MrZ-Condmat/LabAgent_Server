@@ -319,7 +319,7 @@ def test_scripts_keep_credentials_and_storage_safe():
     )
     assert "umask 077" in combined
     assert "chmod 600" in combined
-    assert "/data/zmr/labagent_backups/postgres" in combined
+    assert "/data/zmr/projects/labagent_backups/postgres" in combined
     assert "LABAGENT_POSTGRES_BACKUP_DIR" in combined
     assert 'echo "$POSTGRES_PASSWORD"' not in combined
     assert 'cat "$ENV_FILE"' not in combined

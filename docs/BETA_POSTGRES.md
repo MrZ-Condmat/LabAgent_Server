@@ -14,15 +14,29 @@ The Beta service is named `postgres-beta`, its stable container name is
 
 ## Server-only configuration
 
+Long-term Beta runtime data is grouped beside the deployed project:
+
+```text
+/data/zmr/projects/
+├── labAgent_Server/
+├── labagent_runtime/
+│   ├── postgres.env
+│   └── labagent.env
+└── labagent_backups/
+    └── postgres/
+```
+
+`labagent.env` is reserved for the later runtime-configuration task.
+
 Keep the real PostgreSQL environment file outside the deployed source tree:
 
 ```bash
-sudo install -d -m 700 -o zmr -g zmr /data/zmr/labagent_runtime
-install -m 600 config/postgres.env.example /data/zmr/labagent_runtime/postgres.env
+sudo install -d -m 700 -o zmr -g zmr /data/zmr/projects/labagent_runtime
+install -m 600 config/postgres.env.example /data/zmr/projects/labagent_runtime/postgres.env
 ```
 
-Edit `/data/zmr/labagent_runtime/postgres.env` and replace `CHANGE_ME` with a
-strong, unique database password:
+Edit `/data/zmr/projects/labagent_runtime/postgres.env` and replace `CHANGE_ME`
+with a strong, unique database password:
 
 ```dotenv
 POSTGRES_DB=labagent
@@ -34,7 +48,7 @@ LABAGENT_POSTGRES_PORT=55432
 Confirm its permissions without displaying its contents:
 
 ```bash
-stat -c '%A %a %U:%G %n' /data/zmr/labagent_runtime/postgres.env
+stat -c '%A %a %U:%G %n' /data/zmr/projects/labagent_runtime/postgres.env
 ```
 
 The file must remain server-only and should have mode `600`. Do not copy it
@@ -154,7 +168,7 @@ does not migrate data from the disposable Task 16 test database.
 
 The backup script uses `pg_dump -Fc` inside the running PostgreSQL 15 container,
 so the host does not need PostgreSQL client tools. By default it writes to the
-server-only directory `/data/zmr/labagent_backups/postgres`:
+server-only directory `/data/zmr/projects/labagent_backups/postgres`:
 
 ```bash
 cd /data/zmr/projects/labAgent_Server
@@ -194,7 +208,7 @@ Restore into a new, separate database; never use the current value of
 
 ```bash
 bash scripts/restore_beta_postgres.sh \
-  /data/zmr/labagent_backups/postgres/labagent_YYYYMMDD_HHMMSS.dump \
+  /data/zmr/projects/labagent_backups/postgres/labagent_YYYYMMDD_HHMMSS.dump \
   --target-db labagent_restore_test
 ```
 

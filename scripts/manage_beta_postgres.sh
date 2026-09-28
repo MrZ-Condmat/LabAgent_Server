@@ -3,7 +3,7 @@ set -euo pipefail
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 COMPOSE_FILE="$PROJECT_ROOT/compose.beta-postgres.yml"
-ENV_FILE="${LABAGENT_POSTGRES_ENV_FILE:-/data/zmr/labagent_runtime/postgres.env}"
+ENV_FILE="${LABAGENT_POSTGRES_ENV_FILE:-/data/zmr/projects/labagent_runtime/postgres.env}"
 SERVICE="postgres-beta"
 CONTAINER="labagent-postgres"
 IMAGE="postgres:15-alpine"
