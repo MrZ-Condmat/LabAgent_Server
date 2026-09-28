@@ -2,9 +2,7 @@ param(
     [string]$ServerHost = "166.111.26.183",
     [string]$ServerUser = "zmr",
     [int]$ServerPort = 22,
-    [string]$RemoteRoot = "/data/zmr/projects/labAgent_Server",
-    [string]$CondaExe = "/home/zmr/miniforge3/bin/conda",
-    [string]$CondaEnv = "labagent_server",
+    [string]$DeployRoot = "/data/zmr/projects/labagent_deploy",
     [switch]$RestartWeb,
     [switch]$InstallDeps,
     [switch]$RunSmokeTest,
@@ -38,156 +36,126 @@ function Invoke-Checked {
     }
 }
 
+if ($RestartWeb) {
+    throw "-RestartWeb is deprecated for release deployment. Stage, activate, restart systemd services manually, then verify."
+}
+if ($InstallDeps) {
+    throw "-InstallDeps is not supported by immutable release staging. Manage the shared Conda environment as a separate operator step."
+}
+if ($RunSmokeTest) {
+    throw "-RunSmokeTest is not supported by release staging. Use activate, manual systemd restart, and verify_beta_release.sh."
+}
+if ($AllowDirty) {
+    throw "-AllowDirty is disabled. Long-term Beta releases must come from a committed Git HEAD."
+}
+
 $ProjectRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
-$Timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
-$ArchiveName = "labAgent_Server_deploy_$Timestamp.tar.gz"
-$ArchivePath = Join-Path $env:TEMP $ArchiveName
-$RemoteArchive = "/tmp/$ArchiveName"
-$RemoteScript = "/tmp/labAgent_Server_deploy_$Timestamp.sh"
-$LocalRemoteScript = Join-Path $env:TEMP "labAgent_Server_deploy_$Timestamp.sh"
+$Timestamp = (Get-Date).ToUniversalTime().ToString("yyyyMMdd_HHmmss")
+$TempFiles = New-Object System.Collections.Generic.List[string]
+$ArchivePath = $null
 
 Push-Location $ProjectRoot
 try {
     Assert-CommandExists git
-    Assert-CommandExists tar
     Assert-CommandExists scp
     Assert-CommandExists ssh
 
-    $Dirty = git status --porcelain=v1
+    $TrackedDirty = git status --porcelain=v1 --untracked-files=no
     if ($LASTEXITCODE -ne 0) {
         throw "Could not verify Git working tree status."
     }
-    if ($Dirty -and -not $AllowDirty) {
-        Write-Host "Working tree has uncommitted changes:" -ForegroundColor Yellow
-        $Dirty | ForEach-Object { Write-Host "  $_" -ForegroundColor Yellow }
-        throw "Commit changes first, or rerun with -AllowDirty if you intentionally want to deploy uncommitted files."
+    if ($TrackedDirty) {
+        Write-Host "Tracked files have uncommitted changes:" -ForegroundColor Yellow
+        $TrackedDirty | ForEach-Object { Write-Host "  $_" -ForegroundColor Yellow }
+        throw "Commit tracked changes before staging a release. Untracked files are ignored."
     }
 
-    $Commit = git rev-parse --verify HEAD
+    $Commit = (git rev-parse --verify HEAD).Trim()
+    $ShortCommit = (git rev-parse --short=7 HEAD).Trim()
     if ($LASTEXITCODE -ne 0 -or $Commit -notmatch '^[0-9a-f]{40,64}$') {
         throw "Could not determine the Git commit to deploy."
     }
-    $Revision = if ($Dirty) { "$Commit-dirty" } else { $Commit }
-
-    if (Test-Path -LiteralPath $ArchivePath) {
-        Remove-Item -LiteralPath $ArchivePath -Force
+    if ($ShortCommit -notmatch '^[0-9a-f]{7,12}$' -or -not $Commit.StartsWith($ShortCommit)) {
+        throw "Could not determine a valid short Git revision."
     }
 
-    Write-Host "Creating deployment archive..." -ForegroundColor Cyan
-    $TarArgs = @(
-        "--exclude=.git",
-        "--exclude=.env",
-        "--exclude=reports",
-        "--exclude=logs",
-        "--exclude=__pycache__",
-        "--exclude=*/__pycache__",
-        "--exclude=*.pyc",
-        "--exclude=.venv",
-        "--exclude=labagent",
-        "--exclude=labAgent_Server_deploy*.tar.gz",
-        "-czf",
-        $ArchivePath,
-        "."
-    )
-    Invoke-Checked "tar" $TarArgs
+    $ReleaseId = "${Timestamp}_${ShortCommit}"
+    $ArchiveName = "labagent_release_${ReleaseId}.tar.gz"
+    $ArchivePath = Join-Path $env:TEMP $ArchiveName
+    $StageCopyName = "stage_beta_release_${ReleaseId}.sh"
+    $HelperCopyName = "release_archive_${ReleaseId}.py"
+    $DriverName = "stage_beta_release_${ReleaseId}_remote.sh"
+    $LocalStageCopy = Join-Path $env:TEMP $StageCopyName
+    $LocalHelperCopy = Join-Path $env:TEMP $HelperCopyName
+    $LocalDriver = Join-Path $env:TEMP $DriverName
+    foreach ($path in @($ArchivePath, $LocalStageCopy, $LocalHelperCopy, $LocalDriver)) {
+        $TempFiles.Add($path)
+        if (Test-Path -LiteralPath $path) {
+            Remove-Item -LiteralPath $path -Force
+        }
+    }
 
-    $RemoteRootQ = ConvertTo-BashSingleQuoted $RemoteRoot
-    $RemoteArchiveQ = ConvertTo-BashSingleQuoted $RemoteArchive
-    $RemoteScriptQ = ConvertTo-BashSingleQuoted $RemoteScript
-    $RevisionQ = ConvertTo-BashSingleQuoted $Revision
-    $CondaExeQ = ConvertTo-BashSingleQuoted $CondaExe
-    $CondaEnvQ = ConvertTo-BashSingleQuoted $CondaEnv
+    Write-Host "Creating immutable release archive from Git HEAD..." -ForegroundColor Cyan
+    Invoke-Checked "git" @("archive", "--format=tar.gz", "--output=$ArchivePath", "HEAD")
+    Copy-Item -LiteralPath "scripts/stage_beta_release.sh" -Destination $LocalStageCopy
+    Copy-Item -LiteralPath "scripts/release_archive.py" -Destination $LocalHelperCopy
+
+    $RemoteArchive = "/tmp/$ArchiveName"
+    $RemoteStage = "/tmp/$StageCopyName"
+    $RemoteHelper = "/tmp/$HelperCopyName"
+    $RemoteDriver = "/tmp/$DriverName"
+    $ArchiveQ = ConvertTo-BashSingleQuoted $RemoteArchive
+    $StageQ = ConvertTo-BashSingleQuoted $RemoteStage
+    $HelperQ = ConvertTo-BashSingleQuoted $RemoteHelper
+    $DriverQ = ConvertTo-BashSingleQuoted $RemoteDriver
+    $ReleaseIdQ = ConvertTo-BashSingleQuoted $ReleaseId
+    $CommitQ = ConvertTo-BashSingleQuoted $Commit
+    $DeployRootQ = ConvertTo-BashSingleQuoted $DeployRoot
 
     $RemoteLines = @(
         "#!/usr/bin/env bash",
         "set -euo pipefail",
-        "REMOTE_ROOT=$RemoteRootQ",
-        "ARCHIVE=$RemoteArchiveQ",
-        "REMOTE_SCRIPT=$RemoteScriptQ",
-        "CONDA_EXE=$CondaExeQ",
-        "CONDA_ENV=$CondaEnvQ",
-        "trap 'rm -f `"`$ARCHIVE`" `"`$REMOTE_SCRIPT`"' EXIT",
-        "mkdir -p `"`$REMOTE_ROOT`"",
-        "tar -xzf `"`$ARCHIVE`" -C `"`$REMOTE_ROOT`"",
-        "cd `"`$REMOTE_ROOT`"",
-        "mkdir -p logs",
-        "find scripts -maxdepth 1 -type f -name '*.sh' -exec chmod +x {} +",
-        "echo `"Deployed archive to `$REMOTE_ROOT`"",
-        "echo `"Note: .env, reports, logs, virtualenvs, and Git metadata were not overwritten by the archive.`""
+        "ARCHIVE=$ArchiveQ",
+        "STAGE_SCRIPT=$StageQ",
+        "ARCHIVE_HELPER=$HelperQ",
+        "REMOTE_DRIVER=$DriverQ",
+        "RELEASE_ID=$ReleaseIdQ",
+        "REVISION=$CommitQ",
+        "DEPLOY_ROOT=$DeployRootQ",
+        "trap 'rm -f -- `"`$ARCHIVE`" `"`$STAGE_SCRIPT`" `"`$ARCHIVE_HELPER`" `"`$REMOTE_DRIVER`"' EXIT",
+        "RELEASE_ARCHIVE_HELPER=`"`$ARCHIVE_HELPER`" LABAGENT_DEPLOY_ROOT=`"`$DEPLOY_ROOT`" bash `"`$STAGE_SCRIPT`" `"`$ARCHIVE`" `"`$RELEASE_ID`" `"`$REVISION`""
     )
-
-    if ($InstallDeps) {
-        $RemoteLines += "CONDA_EXE=`"`$CONDA_EXE`" LABAGENT_CONDA_ENV=`"`$CONDA_ENV`" bash scripts/setup_server.sh"
-    }
-
-    if ($RunSmokeTest) {
-        $RemoteLines += "`"`$CONDA_EXE`" run -n `"`$CONDA_ENV`" python scripts/generate_daily_report.py --skip-arxiv --skip-journals --skip-highlights"
-    }
-
-    if ($RestartWeb) {
-        $RemoteLines += 'WEB_SYSTEMD_MANAGED=0'
-        $RemoteLines += 'if [ -f /etc/systemd/system/labagent-web.service ]; then'
-        $RemoteLines += '    WEB_SYSTEMD_MANAGED=1'
-        $RemoteLines += 'elif command -v systemctl >/dev/null 2>&1; then'
-        $RemoteLines += '    WEB_UNIT_LOAD_STATE="$(systemctl show labagent-web.service --property=LoadState --value 2>/dev/null || true)"'
-        $RemoteLines += '    if [ -n "$WEB_UNIT_LOAD_STATE" ] && [ "$WEB_UNIT_LOAD_STATE" != "not-found" ]; then'
-        $RemoteLines += '        WEB_SYSTEMD_MANAGED=1'
-        $RemoteLines += '    fi'
-        $RemoteLines += 'fi'
-        $RemoteLines += 'if [ "$WEB_SYSTEMD_MANAGED" -eq 1 ]; then'
-        $RemoteLines += "    echo 'LabAgent Web is managed by systemd. Legacy -RestartWeb is disabled.' >&2"
-        $RemoteLines += "    echo 'Deploy without -RestartWeb and restart the systemd services explicitly.' >&2"
-        $RemoteLines += '    exit 1'
-        $RemoteLines += 'fi'
-        $RemoteLines += "if [ ! -x `"`$CONDA_EXE`" ]; then echo 'Conda executable not found; pass -CondaExe /path/to/conda.' >&2; exit 1; fi"
-        $RemoteLines += "if ! `"`$CONDA_EXE`" run -n `"`$CONDA_ENV`" python -c 'import streamlit' >/dev/null 2>&1; then echo 'Conda environment or Streamlit is unavailable; old Web process was left running.' >&2; exit 1; fi"
-        $RemoteLines += "if ! command -v curl >/dev/null 2>&1; then echo 'curl is required for the Web health check; old Web process was left running.' >&2; exit 1; fi"
-        $RemoteLines += "pkill -f 'streamlit run lab_agent/web/app.py' || true"
-        $RemoteLines += "for attempt in {1..10}; do"
-        $RemoteLines += "    if ! pgrep -f 'streamlit run lab_agent/web/app.py' >/dev/null; then break; fi"
-        $RemoteLines += "    sleep 1"
-        $RemoteLines += "done"
-        $RemoteLines += "if pgrep -f 'streamlit run lab_agent/web/app.py' >/dev/null; then echo 'Old Web process did not stop; deployed revision was not updated.' >&2; exit 1; fi"
-        $RemoteLines += "nohup env CONDA_EXE=`"`$CONDA_EXE`" LABAGENT_CONDA_ENV=`"`$CONDA_ENV`" bash scripts/run_web_app.sh > logs/web_app.log 2>&1 < /dev/null &"
-        $RemoteLines += "WEB_PID=`$!"
-        $RemoteLines += "WEB_READY=0"
-        $RemoteLines += "for attempt in {1..20}; do"
-        $RemoteLines += "    if ! kill -0 `"`$WEB_PID`" 2>/dev/null; then break; fi"
-        $RemoteLines += "    if curl -fsS --max-time 2 http://127.0.0.1:8501/_stcore/health >/dev/null 2>&1; then WEB_READY=1; break; fi"
-        $RemoteLines += "    sleep 1"
-        $RemoteLines += "done"
-        $RemoteLines += "if [ `"`$WEB_READY`" -ne 1 ]; then"
-        $RemoteLines += "    echo 'Web app failed to start; deployed revision was not updated.' >&2"
-        $RemoteLines += "    echo 'Last 50 lines of logs/web_app.log:' >&2"
-        $RemoteLines += "    tail -n 50 logs/web_app.log >&2"
-        $RemoteLines += "    exit 1"
-        $RemoteLines += "fi"
-        $RemoteLines += "echo 'Web app health check passed.'"
-    }
-
-    $RemoteLines += "printf '%s\n' $RevisionQ > logs/deployed_revision.txt.tmp"
-    $RemoteLines += "mv logs/deployed_revision.txt.tmp logs/deployed_revision.txt"
-    $RemoteLines += "echo `"Recorded deployment revision: $Revision`""
-
     $Utf8NoBom = New-Object System.Text.UTF8Encoding($false)
-    [System.IO.File]::WriteAllText($LocalRemoteScript, ($RemoteLines -join "`n") + "`n", $Utf8NoBom)
+    [System.IO.File]::WriteAllText($LocalDriver, ($RemoteLines -join "`n") + "`n", $Utf8NoBom)
 
     $Target = "${ServerUser}@${ServerHost}"
-    Write-Host "Uploading archive and remote deploy script to $Target..." -ForegroundColor Cyan
-    Invoke-Checked "scp" @("-P", "$ServerPort", $ArchivePath, "${Target}:$RemoteArchive")
-    Invoke-Checked "scp" @("-P", "$ServerPort", $LocalRemoteScript, "${Target}:$RemoteScript")
+    Write-Host "Uploading release archive and staging helpers to $Target..." -ForegroundColor Cyan
+    $ScpArguments = @("-P", "$ServerPort", $ArchivePath, $LocalStageCopy, $LocalHelperCopy, $LocalDriver, "${Target}:/tmp/")
+    Invoke-Checked "scp" $ScpArguments
 
-    Write-Host "Applying deployment on server..." -ForegroundColor Cyan
-    Invoke-Checked "ssh" @("-p", "$ServerPort", $Target, "bash $RemoteScript")
+    Write-Host "Staging immutable release on server..." -ForegroundColor Cyan
+    Invoke-Checked "ssh" @("-p", "$ServerPort", $Target, "bash $RemoteDriver")
 
-    Write-Host "Deployment complete." -ForegroundColor Green
+    $ReleaseDirectory = "$DeployRoot/releases/$ReleaseId"
+    Write-Host "Release staged successfully." -ForegroundColor Green
+    Write-Host "Staged release ID: $ReleaseId"
+    Write-Host "Full revision: $Commit"
+    Write-Host "Release directory: $ReleaseDirectory"
+    Write-Host "Running services were not modified or restarted."
+    Write-Host "Next server steps:"
+    Write-Host "  bash $ReleaseDirectory/scripts/activate_beta_release.sh $ReleaseId"
+    Write-Host "  sudo systemctl restart labagent-auth.service"
+    Write-Host "  sudo systemctl restart labagent-web.service"
+    Write-Host "  bash /data/zmr/projects/labAgent_Server/scripts/verify_beta_release.sh"
 }
 finally {
     Pop-Location
-    if ((Test-Path -LiteralPath $LocalRemoteScript)) {
-        Remove-Item -LiteralPath $LocalRemoteScript -Force
-    }
-    if (-not $KeepArchive -and (Test-Path -LiteralPath $ArchivePath)) {
-        Remove-Item -LiteralPath $ArchivePath -Force
+    foreach ($path in $TempFiles) {
+        if ($KeepArchive -and $null -ne $ArchivePath -and $path -eq $ArchivePath) {
+            continue
+        }
+        if (Test-Path -LiteralPath $path) {
+            Remove-Item -LiteralPath $path -Force
+        }
     }
 }

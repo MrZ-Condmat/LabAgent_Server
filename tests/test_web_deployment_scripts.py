@@ -182,17 +182,58 @@ fi
         assert expected in result.stdout
 
 
-def test_deployment_restart_passes_conda_and_gates_revision_on_health():
+def test_release_deployment_uses_committed_git_archive_and_ignores_untracked():
     source = (ROOT / "deploy_to_server.ps1").read_text(encoding="utf-8-sig")
-    restart = source.index("if ($RestartWeb)")
-    preflight = source.index("Conda environment or Streamlit is unavailable", restart)
-    stop_old = source.index("pkill -f", restart)
-    start_new = source.index("nohup env CONDA_EXE=", restart)
-    health = source.index("/_stcore/health", restart)
-    failure = source.index("Web app failed to start", restart)
-    revision = source.index("logs/deployed_revision.txt.tmp", restart)
+    assert "git status --porcelain=v1 --untracked-files=no" in source
+    assert 'Invoke-Checked "git" @("archive", "--format=tar.gz"' in source
+    assert "scripts/rescore_saved_reports.py" not in source
+    assert "tar -xzf" not in source
+    assert 'throw "Commit tracked changes before staging a release.' in source
 
-    assert restart < preflight < stop_old < start_new < health < failure < revision
-    assert "LABAGENT_CONDA_ENV=" in source[start_new:health]
-    assert "tail -n 50 logs/web_app.log" in source[failure:revision]
-    assert "exit 1" in source[failure:revision]
+
+def test_release_deployment_stages_without_activation_or_process_changes():
+    source = (ROOT / "deploy_to_server.ps1").read_text(encoding="utf-8-sig")
+    assert "stage_beta_release.sh" in source
+    assert "release_archive.py" in source
+    assert "LABAGENT_DEPLOY_ROOT=" in source
+    assert "Staged release ID:" in source
+    assert "Running services were not modified or restarted." in source
+    assert "pkill" not in source
+    assert "nohup" not in source
+    assert 'Invoke-Checked "ssh"' in source
+    assert "sudo -S" not in source
+    assert "echo password" not in source.lower()
+    assert "systemctl restart" in source  # Printed operator instructions only.
+    assert 'Write-Host "  sudo systemctl restart' in source
+
+
+def test_legacy_mutating_options_fail_before_network_commands():
+    source = (ROOT / "deploy_to_server.ps1").read_text(encoding="utf-8-sig")
+    push_location = source.index("Push-Location")
+    network = source.index('Assert-CommandExists scp', push_location)
+    for option in ("RestartWeb", "InstallDeps", "RunSmokeTest", "AllowDirty"):
+        guard = source.index(f"if (${option})")
+        assert guard < push_location < network
+        assert "throw" in source[guard:source.index("}", guard)]
+
+
+def test_git_head_archive_excludes_intentional_untracked_file(tmp_path):
+    archive = tmp_path / "head.tar"
+    result = subprocess.run(
+        ["git", "archive", "--format=tar", f"--output={archive}", "HEAD"],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    listing = subprocess.run(
+        ["tar", "-tf", str(archive)],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert listing.returncode == 0, listing.stderr
+    assert "scripts/rescore_saved_reports.py" not in listing.stdout.splitlines()
+    assert ".env" not in listing.stdout.splitlines()

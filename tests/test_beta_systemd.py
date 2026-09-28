@@ -78,31 +78,22 @@ def test_installer_only_installs_reloads_and_enables():
     assert 'cat "$RUNTIME_ENV"' not in INSTALLER
 
 
-def test_deployment_restart_guard_precedes_legacy_process_actions():
+def test_deployment_restart_option_is_rejected_before_network_or_process_actions():
     restart = DEPLOYMENT.index("if ($RestartWeb)")
-    guard = DEPLOYMENT.index("systemctl show labagent-web.service", restart)
-    fail_safe = DEPLOYMENT.index("Legacy -RestartWeb is disabled", guard)
-    preflight = DEPLOYMENT.index("Conda environment or Streamlit is unavailable", fail_safe)
-    pkill = DEPLOYMENT.index("pkill -f", preflight)
-    nohup = DEPLOYMENT.index("nohup env CONDA_EXE=", pkill)
+    push_location = DEPLOYMENT.index("Push-Location")
+    network = DEPLOYMENT.index("Assert-CommandExists scp", push_location)
 
-    assert restart < guard < fail_safe < preflight < pkill < nohup
-    assert "/etc/systemd/system/labagent-web.service" in DEPLOYMENT[restart:guard]
-    assert "WEB_SYSTEMD_MANAGED=1" in DEPLOYMENT[restart:preflight]
-    assert '"not-found"' in DEPLOYMENT[guard:preflight]
-    assert "Deploy without -RestartWeb" in DEPLOYMENT[guard:preflight]
-    assert "systemctl restart" not in DEPLOYMENT[restart:nohup]
+    assert restart < push_location < network
+    assert "deprecated for release deployment" in DEPLOYMENT[restart:push_location]
+    assert "pkill" not in DEPLOYMENT
+    assert "nohup" not in DEPLOYMENT
 
 
-def test_legacy_restart_remains_available_when_unit_is_not_found():
-    restart = DEPLOYMENT.index("if ($RestartWeb)")
-    guard = DEPLOYMENT.index("systemctl show labagent-web.service", restart)
-    pkill = DEPLOYMENT.index("pkill -f", guard)
-    block = DEPLOYMENT[guard:pkill]
-
-    assert '[ "$WEB_UNIT_LOAD_STATE" != "not-found" ]' in block
-    assert "exit 1" in block
-    assert "fi" in block
+def test_release_deployment_does_not_control_systemd():
+    assert 'Invoke-Checked "ssh"' in DEPLOYMENT
+    assert "systemctl start" not in DEPLOYMENT
+    assert "systemctl stop" not in DEPLOYMENT
+    assert 'Write-Host "  sudo systemctl restart' in DEPLOYMENT
 
 
 def test_no_old_runtime_or_backup_paths_in_systemd_assets():

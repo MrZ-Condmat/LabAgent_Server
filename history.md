@@ -869,3 +869,10 @@
 - 新增安全的数据库 readiness helper 和 systemd 安装脚本；安装脚本只检查、复制、`daemon-reload` 和 enable，不启动或停止服务、不处理旧 nohup 进程、不重启服务器。
 - `deploy_to_server.ps1 -RestartWeb` 在检测到 systemd Web unit 后会于 `pkill`/`nohup` 前失败，避免 systemd 与 legacy restart 争抢进程；Phase C 前使用无 restart 的代码同步，再人工重启两个服务。
 - 增加安装、人工 cutover、health、journal、生命周期和手工回滚文档；服务器 boot recovery 验证明确推迟到 Phase F。未连接服务器，未执行 systemctl，未修改数据库、认证、聊天、日报或科研业务。
+
+## 2026-09-28 Phase C1+C2：Release-based 安全部署与代码回滚
+
+- `deploy_to_server.ps1` 改为仅从 committed Git `HEAD` 创建归档并 stage immutable release；允许未跟踪文件存在但不会打包，拒绝 tracked dirty state，默认不覆盖 live code、不 activation、不重启服务。
+- 新增安全 archive extraction、非敏感 `release.json`、staging 临时目录验证及最终原子 rename；release 中的 `reports`/`logs` 指向 `/data/zmr/projects/labagent_shared`，runtime config、PostgreSQL 和 backups 保持在 release 生命周期之外。
+- 新增显式 activation、rollback 和只读 health verification；`current`/`previous` 使用临时 symlink 加原子替换，activation/rollback 不执行 systemd restart，rollback 不操作数据库，shared `deployed_revision.txt` 原子更新。
+- 增加 regular live directory 到 compatibility symlink 的一次性安全迁移文档，要求可验证的 reports/logs 双阶段复制并保留旧 live tree。未加入 Alembic 自动化、release retention、自动生产部署、应用容器或 reboot 验证。

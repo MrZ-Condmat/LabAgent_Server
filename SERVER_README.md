@@ -177,7 +177,8 @@ Outside this project folder:
 
 ## Useful Environment Values
 
-`.env` contains:
+The canonical private runtime file
+`/data/zmr/projects/labagent_runtime/labagent.env` contains values such as:
 
 ```bash
 LABAGENT_PROJECT_ROOT=/data/zmr/projects/labAgent_Server
@@ -186,75 +187,45 @@ STREAMLIT_PORT=8501
 DEFAULT_TIMEZONE=Asia/Shanghai
 ```
 
-Keep `.env` private because it contains API keys.
+Keep that external file private because it contains credentials and API keys.
+Release archives never contain it.
 
-## Deploy Local Changes To Server
+## Stage a release from local Git
 
-After editing files locally in `G:\labAgent\labAgent_Server`, commit your work and deploy from Windows PowerShell:
+After committing local changes, run:
 
 ```powershell
-cd G:\labAgent\labAgent_Server
+cd G:\labAgent\LabAgent_Server
 git status
-git add -u
-# Add any intended new files individually before committing.
-git commit -m "Describe the change"
-.\deploy_to_server.ps1 -RestartWeb -RunSmokeTest
-```
-
-The deploy script uploads code to:
-
-```text
-/data/zmr/projects/labAgent_Server
-```
-
-After a successful deployment, read the deployed commit on the server with
-`cat /data/zmr/projects/labAgent_Server/logs/deployed_revision.txt`. The file
-contains the full local Git commit ID; a `-dirty` suffix means the deployment
-used `-AllowDirty`. The server does not need its own Git repository for this
-check. Compare it with local `git rev-parse HEAD`.
-
-For `-RestartWeb`, the default Conda executable is
-`/home/zmr/miniforge3/bin/conda`; override it with `-CondaExe` if the server
-uses another path. The deploy script passes `CONDA_EXE` and
-`LABAGENT_CONDA_ENV` directly to the non-interactive Web launcher, which also
-checks `$HOME/miniforge3/bin/conda` as a fallback. No `conda activate` or
-interactive shell setup is required. Before stopping the old Web process,
-deployment checks the Conda executable, environment, Streamlit import, and
-`curl`. It then waits for
-`http://127.0.0.1:8501/_stcore/health`. If startup fails, deployment returns
-an error and prints the last 50 lines of `logs/web_app.log`.
-`logs/deployed_revision.txt` is updated only after that health check passes
-when `-RestartWeb` is used. The archive may already have been extracted after
-a failed restart, so check the Web log before retrying.
-The Web launcher strips Windows CRLF line endings from `STREAMLIT_HOST` and
-`STREAMLIT_PORT` values read from the server's preserved `.env` file.
-
-It does not upload or overwrite server runtime/private data:
-
-```text
-.env
-reports/
-logs/
-.git/
-.venv/
-labagent/
-__pycache__/
-*.pyc
-```
-
-Useful options:
-
-```powershell
 .\deploy_to_server.ps1
-.\deploy_to_server.ps1 -RestartWeb
-.\deploy_to_server.ps1 -InstallDeps -RestartWeb
-.\deploy_to_server.ps1 -RunSmokeTest -RestartWeb
-.\deploy_to_server.ps1 -AllowDirty -RestartWeb
 ```
 
-Use `-InstallDeps` after changing `requirements.txt`. Use `-AllowDirty` only when you intentionally want to deploy uncommitted local files.
+The deployment command packages tracked files from Git `HEAD`, permits
+untracked local files because they cannot enter `git archive`, rejects modified
+or staged tracked files, and stages an immutable release below:
 
-The deployment script restores execute permission on `scripts/*.sh` after extraction. The Cron examples also invoke the daily script through `/usr/bin/bash`, so a missing execute bit cannot prevent the scheduled command from starting.
+```text
+/data/zmr/projects/labagent_deploy/releases/<release-id>
+```
+
+It does not overwrite the live project, activate the release, stop or restart
+services, run a smoke report, install dependencies, or call Alembic. The old
+`-RestartWeb`, `-InstallDeps`, `-RunSmokeTest`, and `-AllowDirty` modes are
+rejected before network operations.
+
+After staging, activate and restart explicitly on the server:
+
+```bash
+cd /data/zmr/projects/labAgent_Server
+bash scripts/activate_beta_release.sh <release-id>
+sudo systemctl restart labagent-auth.service
+sudo systemctl restart labagent-web.service
+bash scripts/verify_beta_release.sh
+```
+
+Release layout, first-time migration, data-copy validation, rollback, and
+database compatibility boundaries are documented in
+`docs/BETA_RELEASE_DEPLOYMENT.md`.
 
 ## Long-term Beta systemd services
 
@@ -276,8 +247,9 @@ cd /data/zmr/projects/labAgent_Server
 sudo bash scripts/install_beta_systemd.sh
 ```
 
-After installation, deploy code without `-RestartWeb`, then explicitly restart
-the services during the approved maintenance window:
+After installation and the one-time release-layout bootstrap, stage and
+activate code, then explicitly restart the services during the approved
+maintenance window:
 
 ```powershell
 .\deploy_to_server.ps1
@@ -288,8 +260,7 @@ sudo systemctl restart labagent-auth.service
 sudo systemctl restart labagent-web.service
 ```
 
-The legacy `-RestartWeb` path fails safely when `labagent-web.service` is
-installed, before it can run `pkill` or start a competing `nohup` process.
-Installation, manual cutover, health checks, journal inspection, and rollback
-are documented in `docs/BETA_SYSTEMD.md`. B2 does not require or perform a
-server reboot test; boot recovery validation is deferred to Phase F.
+The legacy `-RestartWeb` path is disabled for release deployment. systemd
+installation and lifecycle are documented in `docs/BETA_SYSTEMD.md`; release
+activation and rollback are documented in `docs/BETA_RELEASE_DEPLOYMENT.md`.
+Server boot recovery validation remains deferred to Phase F.

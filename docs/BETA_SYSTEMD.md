@@ -186,7 +186,7 @@ sudo journalctl -u labagent-auth.service -n 100 --no-pager
 sudo journalctl -u labagent-web.service -n 100 --no-pager
 ```
 
-## Deployment transition before Phase C
+## Release deployment integration
 
 Once the units are installed, do not use:
 
@@ -194,21 +194,24 @@ Once the units are installed, do not use:
 .\deploy_to_server.ps1 -RestartWeb
 ```
 
-The deployment script detects the installed `labagent-web.service` and rejects
-that legacy path before `pkill` or `nohup` runs. This prevents duplicate Web
-processes and port conflicts.
+Release deployment rejects that legacy option before any network operation.
+This prevents duplicate Web processes and port conflicts.
 
-Until Phase C adds systemd-aware atomic deployment, upload code without a
-restart and explicitly restart both services on the server:
+Stage the committed release locally, activate it explicitly on the server, then
+restart both services:
 
 ```powershell
 .\deploy_to_server.ps1
 ```
 
 ```bash
+bash /data/zmr/projects/labAgent_Server/scripts/activate_beta_release.sh <release-id>
 sudo systemctl restart labagent-auth.service
 sudo systemctl restart labagent-web.service
+bash /data/zmr/projects/labAgent_Server/scripts/verify_beta_release.sh
 ```
+
+See `docs/BETA_RELEASE_DEPLOYMENT.md` for first-time bootstrap and rollback.
 
 ## Manual rollback
 
