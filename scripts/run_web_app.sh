@@ -27,18 +27,15 @@ find_conda() {
   return 1
 }
 
-ENV_PORT=""
-ENV_HOST=""
-if [[ -f ".env" ]]; then
-  ENV_PORT="$(grep -E '^STREAMLIT_PORT=' .env | tail -n 1 | cut -d= -f2- || true)"
-  ENV_HOST="$(grep -E '^STREAMLIT_HOST=' .env | tail -n 1 | cut -d= -f2- || true)"
-fi
-
-PORT="${STREAMLIT_PORT:-${ENV_PORT:-8501}}"
-HOST="${STREAMLIT_HOST:-${ENV_HOST:-0.0.0.0}}"
-# Command substitution removes LF, but a CRLF .env leaves a trailing CR.
-PORT="${PORT%$'\r'}"
-HOST="${HOST%$'\r'}"
 CONDA_BIN="$(find_conda)"
+if ! WEB_RUNTIME="$("$CONDA_BIN" run --no-capture-output -n "$CONDA_ENV_NAME" python scripts/resolve_web_runtime.py)"; then
+  echo "Unable to resolve Streamlit runtime configuration." >&2
+  exit 1
+fi
+IFS=$'\t' read -r HOST PORT <<< "$WEB_RUNTIME"
+if [[ -z "$HOST" || ! "$PORT" =~ ^[0-9]+$ ]]; then
+  echo "Invalid Streamlit runtime configuration." >&2
+  exit 1
+fi
 
 exec "$CONDA_BIN" run --no-capture-output -n "$CONDA_ENV_NAME" python -m streamlit run lab_agent/web/app.py --server.address "$HOST" --server.port "$PORT"

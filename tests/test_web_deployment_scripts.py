@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 
 import pytest
 
@@ -35,6 +36,12 @@ trap 'rm -rf "$test_dir"' EXIT
 mkdir -p "$test_dir/project" "$test_dir/home/miniforge3/bin"
 cat > "$test_dir/explicit-conda" <<'FAKE_CONDA'
 #!/bin/sh
+case "$*" in
+  *scripts/resolve_web_runtime.py*)
+    printf '0.0.0.0\t8501\n'
+    exit 0
+    ;;
+esac
 printf 'used=%s\nargs=%s\n' "$0" "$*"
 FAKE_CONDA
 chmod +x "$test_dir/explicit-conda"
@@ -82,6 +89,11 @@ mkdir -p "$test_dir/project"
 printf 'STREAMLIT_HOST=0.0.0.0\r\nSTREAMLIT_PORT=8501\r\n' > "$test_dir/project/.env"
 cat > "$test_dir/conda" <<'FAKE_CONDA'
 #!/bin/sh
+case "$*" in
+  *scripts/resolve_web_runtime.py*)
+    exec "$TEST_PYTHON" "$TEST_RESOLVER"
+    ;;
+esac
 printf 'args=%s\n' "$*"
 FAKE_CONDA
 chmod +x "$test_dir/conda"
@@ -92,7 +104,11 @@ env -u STREAMLIT_HOST -u STREAMLIT_PORT HOME="$test_dir" PATH=/usr/bin:/bin \
     result = subprocess.run(
         [bash, "-c", shell],
         cwd=ROOT,
-        env={**os.environ},
+        env={
+            **os.environ,
+            "TEST_PYTHON": sys.executable,
+            "TEST_RESOLVER": str(ROOT / "scripts" / "resolve_web_runtime.py"),
+        },
         text=True,
         capture_output=True,
         timeout=20,
@@ -100,6 +116,70 @@ env -u STREAMLIT_HOST -u STREAMLIT_PORT HOME="$test_dir" PATH=/usr/bin:/bin \
     )
     assert result.returncode == 0, result.stderr
     assert "--server.address 0.0.0.0 --server.port 8501" in result.stdout
+
+
+@pytest.mark.parametrize(
+    ("mode", "expected"),
+    [
+        ("external", "--server.address 127.0.0.8 --server.port 8601"),
+        ("process", "--server.address 127.0.0.9 --server.port 8602"),
+        ("missing", "LABAGENT_ENV_FILE"),
+    ],
+)
+def test_web_runner_uses_shared_runtime_resolution(mode, expected):
+    bash = _bash_executable()
+    if bash is None:
+        pytest.skip("Bash is unavailable")
+    shell = r'''
+set -eu
+root="$PWD"
+test_dir="$(mktemp -d)"
+trap 'rm -rf "$test_dir"' EXIT
+mkdir -p "$test_dir/project"
+printf 'STREAMLIT_HOST=127.0.0.8\r\nSTREAMLIT_PORT=8601\r\n' > "$test_dir/labagent.env"
+cat > "$test_dir/conda" <<'FAKE_CONDA'
+#!/bin/sh
+case "$*" in
+  *scripts/resolve_web_runtime.py*) exec "$TEST_PYTHON" "$TEST_RESOLVER" ;;
+esac
+printf 'args=%s\n' "$*"
+FAKE_CONDA
+chmod +x "$test_dir/conda"
+if [ "$TEST_MODE" = external ]; then
+    env -u STREAMLIT_HOST -u STREAMLIT_PORT HOME="$test_dir" PATH=/usr/bin:/bin \
+        CONDA_EXE="$test_dir/conda" LABAGENT_PROJECT_ROOT="$test_dir/project" \
+        LABAGENT_ENV_FILE="$test_dir/labagent.env" bash "$root/scripts/run_web_app.sh"
+elif [ "$TEST_MODE" = process ]; then
+    env HOME="$test_dir" PATH=/usr/bin:/bin CONDA_EXE="$test_dir/conda" \
+        LABAGENT_PROJECT_ROOT="$test_dir/project" LABAGENT_ENV_FILE="$test_dir/labagent.env" \
+        STREAMLIT_HOST=127.0.0.9 STREAMLIT_PORT=8602 bash "$root/scripts/run_web_app.sh"
+else
+    env -u STREAMLIT_HOST -u STREAMLIT_PORT HOME="$test_dir" PATH=/usr/bin:/bin \
+        CONDA_EXE="$test_dir/conda" LABAGENT_PROJECT_ROOT="$test_dir/project" \
+        LABAGENT_ENV_FILE="$test_dir/missing.env" bash "$root/scripts/run_web_app.sh"
+fi
+'''
+    result = subprocess.run(
+        [bash, "-c", shell],
+        cwd=ROOT,
+        env={
+            **os.environ,
+            "TEST_MODE": mode,
+            "TEST_PYTHON": sys.executable,
+            "TEST_RESOLVER": str(ROOT / "scripts" / "resolve_web_runtime.py"),
+        },
+        text=True,
+        capture_output=True,
+        timeout=20,
+        check=False,
+    )
+    if mode == "missing":
+        assert result.returncode != 0
+        assert expected in result.stderr
+        assert "python -m streamlit run" not in result.stdout
+    else:
+        assert result.returncode == 0, result.stderr
+        assert expected in result.stdout
 
 
 def test_deployment_restart_passes_conda_and_gates_revision_on_health():

@@ -41,6 +41,26 @@ current Beta database as its target.
 `compose.integration.yml` remains a separate PostgreSQL 16 database backed by
 `tmpfs` for destructive integration tests. It is not a Beta data store.
 
+## Persistent Application Runtime Configuration
+
+Long-term Beta application settings belong in the server-only file:
+
+```text
+/data/zmr/projects/labagent_runtime/labagent.env
+```
+
+FastAPI, Streamlit, and daily reports must receive the same selection variable:
+
+```bash
+export LABAGENT_ENV_FILE=/data/zmr/projects/labagent_runtime/labagent.env
+python scripts/validate_runtime_config.py
+```
+
+The validator reports only field status and never prints secret values. Local
+development continues to use the project `.env` when `LABAGENT_ENV_FILE` is
+unset. See [docs/BETA_RUNTIME_CONFIG.md](docs/BETA_RUNTIME_CONFIG.md) for the
+template, precedence, validation, permissions, and future systemd contract.
+
 It includes source code, `.env`, and existing `reports/`. It intentionally does not include the Windows virtual environment, `.git`, or old local logs.
 
 ## First Setup With Conda

@@ -856,3 +856,9 @@
 
 - 将 PostgreSQL 私有运行配置默认路径统一为 `/data/zmr/projects/labagent_runtime/postgres.env`，将 logical backup 默认目录统一为 `/data/zmr/projects/labagent_backups/postgres`。
 - `LABAGENT_POSTGRES_ENV_FILE` 与 `LABAGENT_POSTGRES_BACKUP_DIR` override 机制及优先级保持不变；未修改 Compose、数据库 schema、Alembic、备份恢复逻辑或业务代码。
+
+## 2026-09-28 Beta Task B1：持久化应用运行配置
+
+- 新增 `LABAGENT_ENV_FILE` 和统一 dotenv 解析：`explicit config_path > LABAGENT_ENV_FILE > project .env`，已有 process environment 继续通过 `override=False` 保持最高值优先级；显式 external file 缺失时明确失败。
+- 新增只含占位符的 `config/labagent.env.example` 和不输出 secret 的 runtime validator，检查长期 Beta 所需数据库、认证、SMTP、LLM、URL、端口、布尔值、时区及 placeholder/HMAC 长度。
+- Streamlit launcher 改用与 FastAPI、Streamlit 应用和日报相同的 Python `Config` 解析 host/port，保留本地 project `.env`、process override 和 CRLF 兼容；未修改认证、数据库、日报业务逻辑或 systemd/deployment。

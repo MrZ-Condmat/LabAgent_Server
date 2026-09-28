@@ -11,6 +11,10 @@ from dotenv import load_dotenv
 SERVER_PROJECT_ROOT = Path("/data/zmr/projects/labAgent_Server")
 
 
+class RuntimeConfigurationError(RuntimeError):
+    """Raised when an explicitly selected runtime configuration is unusable."""
+
+
 def local_project_root() -> Path:
     return Path(__file__).resolve().parents[2]
 
@@ -37,9 +41,31 @@ def project_path_str(path: Union[str, os.PathLike]) -> str:
     return str(project_path(path))
 
 
-def load_project_dotenv(config_path: Optional[Union[str, os.PathLike]] = None) -> None:
-    env_path = Path(config_path).expanduser() if config_path else project_path(".env")
-    load_dotenv(env_path)
+def resolve_project_dotenv_path(
+    config_path: Optional[Union[str, os.PathLike]] = None,
+) -> Path:
+    """Resolve the dotenv source without reading or exposing its values."""
+    if config_path is not None:
+        return Path(config_path).expanduser().resolve()
+
+    configured = os.getenv("LABAGENT_ENV_FILE")
+    if configured:
+        env_path = Path(configured).expanduser().resolve()
+        if not env_path.is_file():
+            raise RuntimeConfigurationError(
+                f"LABAGENT_ENV_FILE does not exist or is not a file: {env_path}"
+            )
+        return env_path
+
+    return project_path(".env").resolve()
+
+
+def load_project_dotenv(
+    config_path: Optional[Union[str, os.PathLike]] = None,
+) -> Path:
+    env_path = resolve_project_dotenv_path(config_path)
+    load_dotenv(env_path, override=False)
+    return env_path
 
 
 def timezone_name() -> str:
