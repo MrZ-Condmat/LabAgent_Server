@@ -1,5 +1,10 @@
 # Long-term Beta Release Deployment
 
+For schema-changing releases, use the separate operator-controlled C3 workflow
+in `docs/BETA_SCHEMA_MIGRATION.md` before activation. Stage/activate/rollback
+remain free of automatic Alembic actions. Old/new code compatibility requires
+explicit review; graph ancestry alone cannot establish it.
+
 Phase C1+C2 changes LabAgent deployment from in-place extraction to explicit,
 immutable code releases. Deployment, activation, service restart, and health
 verification are separate operator actions.

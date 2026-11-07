@@ -192,6 +192,11 @@ Release archives never contain it.
 
 ## Stage a release from local Git
 
+For releases with a real schema change, follow `docs/BETA_SCHEMA_MIGRATION.md`:
+candidate-release read-only plan, explicit maintenance and new verified backup,
+operator-authorized apply, revision verification, then activation. Code-only
+releases do not require a forced migration. No deployment command runs Alembic.
+
 After committing local changes, run:
 
 ```powershell

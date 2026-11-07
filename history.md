@@ -876,3 +876,10 @@
 - 新增安全 archive extraction、非敏感 `release.json`、staging 临时目录验证及最终原子 rename；release 中的 `reports`/`logs` 指向 `/data/zmr/projects/labagent_shared`，runtime config、PostgreSQL 和 backups 保持在 release 生命周期之外。
 - 新增显式 activation、rollback 和只读 health verification；`current`/`previous` 使用临时 symlink 加原子替换，activation/rollback 不执行 systemd restart，rollback 不操作数据库，shared `deployed_revision.txt` 原子更新。
 - 增加 regular live directory 到 compatibility symlink 的一次性安全迁移文档，要求可验证的 reports/logs 双阶段复制并保留旧 live tree。未加入 Alembic 自动化、release retention、自动生产部署、应用容器或 reboot 验证。
+
+## 2026-11-07 Phase C3: Alembic Migration Safety
+
+- Added read-only candidate-release migration planning, explicit DB/endpoint identity checks, revision graph ancestry and saved release/migration fingerprints.
+- Added A2 backup integrity/source-metadata/freshness verification, explicit maintenance and compatibility approval gates, same-connection PostgreSQL advisory locking, and post-upgrade revision verification.
+- Added private atomic external migration audit records and failure/recovery runbooks; no automatic downgrade, restore, service operation or release cutover. Existing migration history and production schema remain unchanged.
+- Added offline fixture graph/backup/failure tests and guarded disposable PostgreSQL fixture migrations. No server connection, production data operation or GitHub push.
