@@ -41,6 +41,13 @@ def _fake_docker_source() -> str:
 printf '%s\n' "$*" >> "$FAKE_DOCKER_LOG"
 
 case "$1" in
+  info)
+    if [ "${FAKE_DOCKER_MODE:-success}" = "permission_denied" ]; then
+      echo 'permission denied while connecting to Docker socket' >&2
+      exit 1
+    fi
+    exit 0
+    ;;
   inspect)
     case "$*" in
       *State.Running*) printf 'true\n' ;;
@@ -181,6 +188,14 @@ def test_backup_creates_validated_archive_checksum_and_manifest(tmp_path):
     assert "example_only_password" not in json.dumps(manifest)
     assert "pg_dump -U labagent -d labagent -Fc" in log
     assert "pg_restore --list" in log
+
+
+def test_backup_docker_permission_error_is_not_missing_container(tmp_path):
+    result, log = _run_script(tmp_path, BACKUP_SCRIPT, mode="permission_denied")
+    assert result.returncode != 0
+    assert "Docker daemon access failed" in result.stderr
+    assert "container does not exist" not in result.stderr
+    assert "pg_dump" not in log
 
 
 def test_backup_failure_removes_partial_files(tmp_path):

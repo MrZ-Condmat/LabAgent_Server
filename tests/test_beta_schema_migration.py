@@ -5,7 +5,7 @@ import hashlib
 import json
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import Mock
+from unittest.mock import Mock, MagicMock
 
 import pytest
 from sqlalchemy import create_engine
@@ -72,6 +72,7 @@ def backup(tmp_path, monkeypatch):
     Path(str(path) + ".json").write_text(json.dumps(data), encoding="utf-8")
     Path(str(path) + ".sha256").write_text(f"{data['sha256']}  {path.name}\n", encoding="utf-8")
     monkeypatch.setattr(s.subprocess, "run", lambda *a, **k: SimpleNamespace(returncode=0))
+    monkeypatch.setattr(s.shutil, "which", lambda name: "/fake/pg_restore")
     return path, data, now
 
 
@@ -83,6 +84,31 @@ def check_backup(backup):
 
 def test_backup_valid(backup):
     assert check_backup(backup)["backup_sha256"] == backup[1]["sha256"]
+
+
+def test_backup_uses_only_local_pg_restore(backup, monkeypatch):
+    calls = []
+    def run(args, **kwargs):
+        calls.append(args)
+        return SimpleNamespace(returncode=0)
+    monkeypatch.setattr(s.subprocess, "run", run)
+    check_backup(backup)
+    assert calls == [["/fake/pg_restore", "--list", str(backup[0])]]
+
+
+def test_missing_local_client_has_no_elevation_fallback(backup, monkeypatch):
+    monkeypatch.setattr(s.shutil, "which", lambda name: None)
+    run = Mock()
+    monkeypatch.setattr(s.subprocess, "run", run)
+    with pytest.raises(s.MigrationBlocked, match="Local pg_restore is unavailable"):
+        check_backup(backup)
+    run.assert_not_called()
+
+
+def test_unreadable_archive_is_distinct(backup, monkeypatch):
+    monkeypatch.setattr(s.subprocess, "run", lambda *a, **k: SimpleNamespace(returncode=1))
+    with pytest.raises(s.MigrationBlocked, match="archive readability"):
+        check_backup(backup)
 
 
 @pytest.mark.parametrize("field,value", [("database_name", "wrong"), ("alembic_revision", "wrong"),
@@ -106,7 +132,7 @@ def test_checksum_sidecar_and_allowed_directory_required(backup, tmp_path):
 
 
 def test_missing_backup_refused(tmp_path):
-    with pytest.raises(FileNotFoundError):
+    with pytest.raises(s.MigrationBlocked, match="missing"):
         s.verify_backup(tmp_path / "absent", tmp_path, {}, not_before=s.utc_now())
 
 
@@ -126,12 +152,17 @@ def test_maintenance_rejects_active_or_unknown_service(monkeypatch):
 def test_migration_failure_audited_without_secret_or_recovery(tmp_path, monkeypatch):
     plan = {"release_id": "fake", "git_revision": "a" * 40,
             "identity": {"database_name": "test", "revision": "old"}, "target_revision": "new"}
+    calls = []
     def fail(*args):
+        calls.append(args)
         raise RuntimeError("password=NEVER_PRINT")
     monkeypatch.setattr(s.command, "upgrade", fail)
+    connection = MagicMock()
+    connection.in_transaction.return_value = False
     with pytest.raises(s.MigrationBlocked) as error:
-        s.apply_plan(Mock(), SimpleNamespace(attributes={}), plan,
+        s.apply_plan(connection, SimpleNamespace(attributes={}), plan,
                      backup={"backup_filename": "test.dump", "backup_sha256": "0" * 64}, audit_dir=tmp_path)
+    assert len(calls) == 1
     assert "NEVER_PRINT" not in str(error.value)
     records = list(tmp_path.glob("*.json"))
     assert len(records) == 1
@@ -144,8 +175,11 @@ def test_wrong_final_revision_fails(tmp_path, monkeypatch):
     monkeypatch.setattr(s.MigrationContext, "configure", lambda c: SimpleNamespace(get_current_heads=lambda: ("wrong",)))
     plan = {"release_id": "fake", "git_revision": "a" * 40,
             "identity": {"database_name": "test", "revision": "old"}, "target_revision": "new"}
+    connection = MagicMock()
+    connection.in_transaction.return_value = False
     with pytest.raises(s.MigrationBlocked):
-        s.apply_plan(Mock(), SimpleNamespace(attributes={}), plan, backup={}, audit_dir=tmp_path)
+        s.apply_plan(connection, SimpleNamespace(attributes={}), plan, backup={}, audit_dir=tmp_path)
+    connection.begin.assert_called_once()
 
 
 @pytest.mark.parametrize("failure", ["missing_url", "connection_failed", "wrong_endpoint"])

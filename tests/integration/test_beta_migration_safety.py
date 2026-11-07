@@ -1,10 +1,13 @@
 """C3 executes fixture revisions only inside a guarded disposable PostgreSQL DB."""
 
 import uuid
+import json
+from pathlib import Path
 
 from alembic import command
 import pytest
-from sqlalchemy import create_engine, text
+from sqlalchemy import text
+from scripts.integration_database_guard import guarded_test_engine as create_engine
 
 from lab_agent.db import migration_safety as s
 
@@ -12,20 +15,19 @@ from lab_agent.db import migration_safety as s
 pytestmark = pytest.mark.integration
 
 
-def test_fixture_upgrade_failure_and_same_connection_lock(test_database_url, tmp_path):
-    # test_database_url rejects non-test names and never falls back to DATABASE_URL.
+def test_fixture_upgrade_failure_and_same_connection_lock(test_database_url, tmp_path, monkeypatch):
+    # URL + opt-in + server marker/user/version gates precede every connection checkout.
     root = tmp_path / "fixture"
     versions = root / "alembic/versions"
     versions.mkdir(parents=True)
-    (root / "alembic.ini").write_text("[alembic]\n", encoding="utf-8")
-    (root / "alembic/env.py").write_text(
-        "from alembic import context\nc=context.config.attributes['connection']\n"
-        "context.configure(connection=c)\nwith context.begin_transaction(): context.run_migrations()\n", encoding="utf-8")
+    project = Path(__file__).resolve().parents[2]
+    (root / "alembic.ini").write_bytes((project / "alembic.ini").read_bytes())
+    (root / "alembic/env.py").write_bytes((project / "alembic/env.py").read_bytes())
     for revision, parent, body in (("fixture_old", None, "pass"),
-                                   ("fixture_new", "fixture_old", "pass"),
-                                   ("fixture_bad", "fixture_new", "raise RuntimeError('fixture failure')")):
+                                   ("fixture_new", "fixture_old", "op.execute('CREATE TABLE c3_probe (id int)')"),
+                                   ("fixture_bad", "fixture_new", "op.execute('CREATE TABLE c3_failed (id int)'); raise RuntimeError('fixture failure')")):
         (versions / f"{revision}.py").write_text(
-            f"revision={revision!r}\ndown_revision={parent!r}\ndef upgrade(): {body}\n"
+            f"from alembic import op\nrevision={revision!r}\ndown_revision={parent!r}\ndef upgrade(): {body}\n"
             "def downgrade(): pass\n", encoding="utf-8")
     schema = "c3_test_" + uuid.uuid4().hex
     engine = create_engine(test_database_url)
@@ -37,22 +39,42 @@ def test_fixture_upgrade_failure_and_same_connection_lock(test_database_url, tmp
         with engine.connect() as connection:
             connection.execute(text(f'CREATE SCHEMA "{schema}"'))
             connection.execute(text(f'SET search_path TO "{schema}"'))
-            assert connection.execute(text("SELECT pg_try_advisory_lock(741613330931)")).scalar_one()
             connection.commit()
-            with engine.connect() as other:
-                assert not other.execute(text("SELECT pg_try_advisory_lock(741613330931)")).scalar_one()
             config.attributes["connection"] = connection
             command.upgrade(config, "fixture_old")
-            s.apply_plan(connection, config, plan, backup={}, audit_dir=tmp_path / "audit")
-            connection.rollback()
-            plan["target_revision"] = "fixture_bad"
-            with pytest.raises(s.MigrationBlocked):
+            with s.migration_lock(connection):
+                with engine.connect() as other:
+                    with pytest.raises(s.MigrationBlocked, match="Another migration"):
+                        with s.migration_lock(other):
+                            pytest.fail("Contending migration acquired lock")
                 s.apply_plan(connection, config, plan, backup={}, audit_dir=tmp_path / "audit")
-            connection.rollback()
-            assert s.MigrationContext.configure(connection).get_current_heads() == ("fixture_new",)
-            connection.rollback()
-            connection.execute(text("SELECT pg_advisory_unlock(741613330931)"))
-            connection.commit()
+                # A separate connection must see durable revision AND DDL, before lock release.
+                with engine.connect() as other:
+                    other.execute(text(f'SET search_path TO "{schema}"'))
+                    assert s.MigrationContext.configure(other).get_current_heads() == ("fixture_new",)
+                    assert other.execute(text("SELECT to_regclass('c3_probe') IS NOT NULL")).scalar_one()
+                plan["target_revision"] = "fixture_bad"
+                with pytest.raises(s.MigrationBlocked):
+                    s.apply_plan(connection, config, plan, backup={}, audit_dir=tmp_path / "audit")
+                with engine.connect() as other:
+                    other.execute(text(f'SET search_path TO "{schema}"'))
+                    assert s.MigrationContext.configure(other).get_current_heads() == ("fixture_new",)
+                    assert other.execute(text("SELECT to_regclass('c3_failed') IS NULL")).scalar_one()
+                # A false final revision rolls back fixture DDL instead of recording success.
+                plan["target_revision"] = "fixture_old"
+                with monkeypatch.context() as changed:
+                    changed.setattr(s.command, "upgrade", lambda *_: connection.execute(text("CREATE TABLE c3_mismatch (id int)")))
+                    with pytest.raises(s.MigrationBlocked):
+                        s.apply_plan(connection, config, plan, backup={}, audit_dir=tmp_path / "audit")
+                with engine.connect() as other:
+                    other.execute(text(f'SET search_path TO "{schema}"'))
+                    assert other.execute(text("SELECT to_regclass('c3_mismatch') IS NULL")).scalar_one()
+            with engine.connect() as other:
+                with s.migration_lock(other):
+                    pass  # Lock was released even after failed migration.
+            records = [json.loads(p.read_text()) for p in (tmp_path / "audit").glob("*.json")]
+            assert sum(r["outcome"] == "SUCCEEDED" for r in records) == 1
+            assert sum(r["outcome"] == "FAILED_REQUIRES_INSPECTION" for r in records) == 2
     finally:
         with engine.begin() as connection:
             connection.execute(text(f'DROP SCHEMA IF EXISTS "{schema}" CASCADE'))

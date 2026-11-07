@@ -883,3 +883,11 @@
 - Added A2 backup integrity/source-metadata/freshness verification, explicit maintenance and compatibility approval gates, same-connection PostgreSQL advisory locking, and post-upgrade revision verification.
 - Added private atomic external migration audit records and failure/recovery runbooks; no automatic downgrade, restore, service operation or release cutover. Existing migration history and production schema remain unchanged.
 - Added offline fixture graph/backup/failure tests and guarded disposable PostgreSQL fixture migrations. No server connection, production data operation or GitHub push.
+
+## 2026-11-07 Phase C3 Final Hardening
+
+- Restricted destructive integration tests to the exact local disposable Compose identity, explicit opt-in and per-checkout database/user/cluster marker/version validation. No production URL fallback.
+- Expanded read-only maintenance process inventory to report shell/Python, rescore, admin and MCP writers; unknown systemd/process state blocks apply. Documented Cron exclusion during maintenance.
+- Replaced Docker-dependent archive readability with local pg_restore; added safe missing/access-denied/client/archive errors and a per-backup manual read-only ACL runbook. A2 distinguishes Docker daemon access failures from absent containers.
+- Made migration transaction commit explicit before success audit, retained the same-connection advisory lock across commit, used NullPool, and invalidated connections on unlock failure. Added guarded PostgreSQL fixture tests for durable cross-connection visibility, rollback, lock competition/release and audit outcomes. No production migration, service action or deployment.
+- Validation: 315 offline tests passed; 48 PostgreSQL integration tests skipped because no test URL/available Docker daemon was present. Safety/A2 focused suite: 87 passed. Alembic head remains 0004_email_otp_auth_foundation. Real PostgreSQL commit/lock validation remains pending on the dedicated local disposable instance.

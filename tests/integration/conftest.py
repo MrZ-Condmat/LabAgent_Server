@@ -7,13 +7,13 @@ from pathlib import Path
 from alembic import command
 from alembic.config import Config as AlembicConfig
 import pytest
-from sqlalchemy import create_engine, inspect, text
-from sqlalchemy.engine import Engine, make_url
+from sqlalchemy import inspect, text
+from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, sessionmaker
+from scripts.integration_database_guard import guarded_test_engine as create_engine, validate_test_database_url
 
 
 PROJECT_ROOT = Path(__file__).parents[2]
-PROTECTED_DATABASE_NAMES = {"postgres", "template0", "template1", "labagent"}
 BUSINESS_TABLES = {"users", "conversations", "messages", "email_login_challenges", "user_sessions"}
 
 
@@ -23,28 +23,22 @@ class MigrationCycleResult:
     enum_types_after_downgrade: frozenset[str]
 
 
-def validate_test_database_url(raw_url: str) -> str:
-    """Reject URLs that do not clearly identify a disposable test database."""
-    url = make_url(raw_url)
-    if not url.drivername.startswith("postgresql"):
-        raise RuntimeError("TEST_DATABASE_URL must use PostgreSQL")
-
-    database_name = (url.database or "").lower()
-    if database_name in PROTECTED_DATABASE_NAMES:
-        raise RuntimeError("TEST_DATABASE_URL points to a protected database name")
-    if not any(marker in database_name for marker in ("test", "integration")):
-        raise RuntimeError(
-            "TEST_DATABASE_URL database name must contain 'test' or 'integration'"
-        )
-    return raw_url
-
-
-def alembic_config(database_url: str) -> AlembicConfig:
-    """Inject the validated test URL without using DATABASE_URL."""
+def alembic_config(connection) -> AlembicConfig:
+    """Always supply the identity-checked connection; never allow env.py URL fallback."""
     config = AlembicConfig(str(PROJECT_ROOT / "alembic.ini"))
     config.set_main_option("script_location", str(PROJECT_ROOT / "alembic"))
-    config.attributes["database_url"] = database_url
+    config.attributes["connection"] = connection
     return config
+
+
+def migrate_test_database(database_url, operation, target):
+    engine = create_engine(database_url)
+    try:
+        with engine.connect() as connection:
+            config = alembic_config(connection)
+            operation(config, target)
+    finally:
+        engine.dispose()
 
 
 def reset_public_schema(database_url: str) -> None:
@@ -69,9 +63,8 @@ def test_database_url() -> str:
 def migration_cycle(test_database_url: str) -> MigrationCycleResult:
     """Reset the test schema and prove the full upgrade/downgrade/upgrade cycle."""
     reset_public_schema(test_database_url)
-    config = alembic_config(test_database_url)
-    command.upgrade(config, "head")
-    command.downgrade(config, "base")
+    migrate_test_database(test_database_url, command.upgrade, "head")
+    migrate_test_database(test_database_url, command.downgrade, "base")
 
     inspection_engine = create_engine(test_database_url)
     try:
@@ -88,7 +81,7 @@ def migration_cycle(test_database_url: str) -> MigrationCycleResult:
     finally:
         inspection_engine.dispose()
 
-    command.upgrade(config, "head")
+    migrate_test_database(test_database_url, command.upgrade, "head")
     return MigrationCycleResult(
         tables_after_downgrade=tables_after_downgrade,
         enum_types_after_downgrade=enum_types_after_downgrade,

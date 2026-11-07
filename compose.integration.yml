@@ -3,6 +3,7 @@ name: labagent-integration
 services:
   postgres-integration:
     image: postgres:16
+    command: ["postgres", "-c", "cluster_name=labagent-disposable-integration"]
     environment:
       POSTGRES_DB: labagent_integration_test
       POSTGRES_USER: labagent_test

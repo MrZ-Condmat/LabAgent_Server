@@ -46,6 +46,7 @@ load_environment() {
 }
 
 check_container() {
+  docker info >/dev/null 2>&1 || fail "Docker daemon access failed (permission denied or daemon unavailable); backup not started."
   docker inspect "$CONTAINER" >/dev/null 2>&1 || fail "Beta PostgreSQL container does not exist: $CONTAINER"
   [[ "$(docker inspect --format '{{.State.Running}}' "$CONTAINER")" == "true" ]] || fail "Beta PostgreSQL container is not running."
 

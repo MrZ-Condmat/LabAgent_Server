@@ -3,7 +3,10 @@
 import hashlib
 import json
 import os
+import re
+import shutil
 import subprocess
+from contextlib import contextmanager
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -37,6 +40,8 @@ def atomic_json(path, value):
             os.chmod(temporary, 0o600)
             json.dump(value, output, sort_keys=True, indent=2)
             output.write("\n")
+            output.flush()
+            os.fsync(output.fileno())
         os.replace(temporary, path)
     finally:
         temporary.unlink(missing_ok=True)
@@ -118,6 +123,17 @@ def snapshot(connection, root, expected_db, target, active_root):
 
 
 def verify_backup(path, allowed_dir, state, *, not_before, now=None, max_age=3600):
+    try:
+        return _verify_backup(path, allowed_dir, state, not_before=not_before, now=now, max_age=max_age)
+    except FileNotFoundError:
+        raise MigrationBlocked("Backup file, directory or sidecar is missing.") from None
+    except PermissionError:
+        raise MigrationBlocked("Backup access denied; request restricted read/traverse ACLs from the administrator.") from None
+    except (OSError, ValueError, TypeError, KeyError):
+        raise MigrationBlocked("Backup metadata or archive could not be read safely.") from None
+
+
+def _verify_backup(path, allowed_dir, state, *, not_before, now=None, max_age=3600):
     now = now or utc_now()
     path = Path(path).resolve(strict=True)
     allowed = Path(allowed_dir).resolve(strict=True)
@@ -146,26 +162,82 @@ def verify_backup(path, allowed_dir, state, *, not_before, now=None, max_age=360
         raise MigrationBlocked("Backup is stale or has a future timestamp.")
     if created < not_before:
         raise MigrationBlocked("Backup must be created after the saved plan.")
-    # Reuse PostgreSQL's archive reader; no restore is performed.
-    with path.open("rb") as source:
-        result = subprocess.run(["docker", "exec", "-i", "labagent-postgres", "pg_restore", "--list"],
-                                stdin=source, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+    reader = shutil.which("pg_restore")
+    if reader is None:
+        raise MigrationBlocked("Local pg_restore is unavailable; install a compatible PostgreSQL client. No elevation attempted.")
+    try:
+        result = subprocess.run([reader, "--list", str(path)],
+                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                                 timeout=60, check=False)
+    except subprocess.TimeoutExpired:
+        raise MigrationBlocked("Backup archive readability check timed out.") from None
     if result.returncode:
         raise MigrationBlocked("Backup archive readability check failed.")
     return {"backup_filename": path.name, "backup_sha256": actual}
 
 
+KNOWN_WRITER_PATTERN = re.compile(
+    r"(?:^|[\s/])(?:run_daily_report\.sh|generate_daily_report\.py|rescore_saved_reports\.py|"
+    r"bootstrap_admin\.py)(?:\s|$)|"
+    r"(?:^|\s)(?:uvicorn\s+lab_agent\.api(?:\.|\s)|"
+    r"streamlit\s+run\s+(?:\S*/)?lab_agent/web/app\.py)|"
+    r"(?:^|[\s/])mcp_server\.py(?:\s|$)|"
+    r"(?:^|\s)-m\s+lab_agent\.(?:admin|mcp\.mcp_server)(?:\s|$)"
+)
+
+
 def check_maintenance():
+    try:
+        _check_maintenance()
+    except (OSError, subprocess.SubprocessError):
+        raise MigrationBlocked("Maintenance inspection failed; migration blocked.") from None
+
+
+def _check_maintenance():
     for service in ("labagent-auth.service", "labagent-web.service"):
         result = subprocess.run(["systemctl", "show", service, "--property=ActiveState", "--value"],
                                 capture_output=True, text=True, timeout=10, check=False)
         if result.returncode or result.stdout.strip() != "inactive":
             raise MigrationBlocked("Both LabAgent services must be inactive.")
-    result = subprocess.run(["pgrep", "-f", "generate_daily_report.py|uvicorn.*lab_agent.api|streamlit run lab_agent/web/app.py"],
-                            capture_output=True, timeout=10, check=False)
-    if result.returncode != 1:
-        raise MigrationBlocked("Potential writer process exists or process check failed.")
+    # ps does not embed a search expression in its argv, avoiding pgrep -f self matches.
+    result = subprocess.run(["ps", "-eo", "pid=,args="],
+                            capture_output=True, text=True, timeout=10, check=False)
+    if result.returncode:
+        raise MigrationBlocked("Process inventory failed; migration blocked.")
+    lines = result.stdout.splitlines()
+    if not lines:
+        raise MigrationBlocked("Empty process inventory; migration blocked.")
+    for line in lines:
+        parts = line.strip().split(None, 1)
+        if len(parts) != 2 or not parts[0].isdigit():
+            raise MigrationBlocked("Unrecognized process inventory; migration blocked.")
+        if int(parts[0]) != os.getpid() and KNOWN_WRITER_PATTERN.search(parts[1]):
+            raise MigrationBlocked("Potential writer process exists; migration blocked.")
+
+
+@contextmanager
+def migration_lock(connection, key=741613330931):
+    """Session lock retained across commits on exactly the migration connection."""
+    try:
+        locked = connection.execute(text("SELECT pg_try_advisory_lock(:key)"), {"key": key}).scalar_one()
+        connection.commit()
+    except Exception:
+        connection.invalidate()
+        raise MigrationBlocked("Unable to acquire migration lock.") from None
+    if not locked:
+        raise MigrationBlocked("Another migration holds the database lock.")
+    try:
+        yield
+    finally:
+        try:
+            connection.rollback()
+            released = connection.execute(text("SELECT pg_advisory_unlock(:key)"), {"key": key}).scalar_one()
+            connection.commit()
+            if not released:
+                raise RuntimeError("Lock ownership lost")
+        except Exception:
+            connection.invalidate()
+            raise MigrationBlocked("Migration lock cleanup failed; connection discarded; inspect database.") from None
 
 
 def apply_plan(connection, config, plan, *, backup, audit_dir):
@@ -183,10 +255,18 @@ def apply_plan(connection, config, plan, *, backup, audit_dir):
     atomic_json(audit, record)  # A durable STARTED record is mandatory BEFORE any DDL.
     config.attributes["connection"] = connection
     try:
-        command.upgrade(config, plan["target_revision"])
+        if connection.in_transaction():
+            raise MigrationBlocked("Migration requires an idle connection with no caller transaction.")
+        # Own the transaction: env.py joins it. Context exit MUST commit before success audit.
+        with connection.begin():
+            command.upgrade(config, plan["target_revision"])
+            heads = MigrationContext.configure(connection).get_current_heads()
+            if heads != (plan["target_revision"],):
+                raise MigrationBlocked("Post-upgrade revision does not match target.")
         heads = MigrationContext.configure(connection).get_current_heads()
+        connection.rollback()  # End the post-commit read transaction only.
         if heads != (plan["target_revision"],):
-            raise MigrationBlocked("Post-upgrade revision does not match target.")
+            raise MigrationBlocked("Committed revision does not match target.")
         record["revision_after"] = heads[0]
         record["outcome"] = "SUCCEEDED"
         atomic_json(audit, record)

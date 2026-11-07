@@ -1,6 +1,7 @@
 """Read-only plans and explicitly authorized Beta schema upgrades."""
 
 import argparse
+from contextlib import ExitStack
 from datetime import datetime, timedelta
 import json
 import logging
@@ -14,6 +15,7 @@ if str(ROOT) not in sys.path:
 
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import make_url
+from sqlalchemy.pool import NullPool
 from lab_agent.utils.runtime import load_project_dotenv
 from lab_agent.db import migration_safety as safety
 
@@ -63,17 +65,15 @@ def main(argv=None):
         audit_dir = external_path(Path("/data/zmr/projects/labagent_shared/logs/migrations"))
         # Never use application echo/debug settings. CLI failures never print driver messages.
         logging.disable(logging.CRITICAL)
-        engine = create_engine(url, connect_args={"connect_timeout": 10}, echo=False)
-        with engine.connect() as connection:
+        engine = create_engine(url, connect_args={"connect_timeout": 10}, echo=False, poolclass=NullPool)
+        with engine.connect() as connection, ExitStack() as locks:
             if args.action == "apply":
                 if not (args.authorize_upgrade and args.confirm_maintenance and args.approve_code_schema_compatibility):
                     raise safety.MigrationBlocked("Apply requires upgrade authorization, maintenance confirmation and code/schema approval.")
                 connection.execute(text("SET lock_timeout = '10s'"))
                 connection.execute(text("SET statement_timeout = '5min'"))
-                locked = connection.execute(text("SELECT pg_try_advisory_lock(:key)"), {"key": LOCK_KEY}).scalar_one()
                 connection.commit()
-                if not locked:
-                    raise safety.MigrationBlocked("Another migration holds the database lock.")
+                locks.enter_context(safety.migration_lock(connection, LOCK_KEY))
             try:
                 connection.execute(text("SET TRANSACTION READ ONLY"))
                 current = safety.snapshot(connection, ROOT, args.expected_db, args.target_revision, active_root)
@@ -110,11 +110,14 @@ def main(argv=None):
                 return 0
             finally:
                 connection.rollback()
-                if args.action == "apply":
-                    connection.execute(text("SELECT pg_advisory_unlock(:key)"), {"key": LOCK_KEY})
-                    connection.commit()
     except safety.MigrationBlocked as exc:
         print(f"BLOCKED: {exc}", file=sys.stderr)
+        return 1
+    except PermissionError:
+        print("BLOCKED: file access denied; request narrowly scoped read/traverse ACLs. Do not run apply as root.", file=sys.stderr)
+        return 1
+    except FileNotFoundError:
+        print("BLOCKED: a required configuration, plan or backup file is missing.", file=sys.stderr)
         return 1
     except Exception:
         print("BLOCKED: configuration, database, metadata or audit operation failed. No automatic recovery; inspect safely.", file=sys.stderr)
