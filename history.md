@@ -891,3 +891,14 @@
 - Replaced Docker-dependent archive readability with local pg_restore; added safe missing/access-denied/client/archive errors and a per-backup manual read-only ACL runbook. A2 distinguishes Docker daemon access failures from absent containers.
 - Made migration transaction commit explicit before success audit, retained the same-connection advisory lock across commit, used NullPool, and invalidated connections on unlock failure. Added guarded PostgreSQL fixture tests for durable cross-connection visibility, rollback, lock competition/release and audit outcomes. No production migration, service action or deployment.
 - Validation: 315 offline tests passed; 48 PostgreSQL integration tests skipped because no test URL/available Docker daemon was present. Safety/A2 focused suite: 87 passed. Alembic head remains 0004_email_otp_auth_foundation. Real PostgreSQL commit/lock validation remains pending on the dedicated local disposable instance.
+
+## 2026-11-09 日报配置修复与历史报告补跑
+
+- 服务器检查确认：11 月 7 日期刊日报有 90 篇，其中 8 篇因 API 超时评分失败；11 月 8、9 日 Cron 按 10:00 触发，但发布目录不含 `.env`，任务未设置 `LABAGENT_ENV_FILE`，导致读取不到评分密钥并退出。
+- 将评分、聊天模型配置及运行时 fallback 统一为 `DeepSeek-V4.1-Flash`，将模型修复保留在发布源中。服务器新发布版本曾重新带入旧模型名；原手工修改仍保留在迁移前目录。生产实测旧评分模型返回无可用部署，新模型评分和聊天调用成功。
+- 服务器已备份并修正 Cron 的 runtime 路径。本地日报 launcher 同样默认使用 canonical runtime 文件、保留显式 override，支持 Miniforge 查找；部署文档中的 Cron 示例同步修正。
+- 新增 `rescore_saved_reports.py`：仅重新评分已保存的失败记录，保留有效低优先级评述，复用已修复来源报告的评分，重试临时 API/空回复错误；未解决项保留失败标记并明确报告，不因单篇超时丢弃整批进度。
+- 新增 `backfill_daily_reports.py`：按报告日期恢复缺失来源，校验 arXiv 页面日期及完整条目数，结合 RSS 快照和 Nature Communications 日期归档补回缺失记录；提供原报告备份、逐篇评分 checkpoint、运行锁、状态文件、汇总及 Highlights 重建。
+- 服务器补跑已于北京时间 2026-11-09 23:41 完成：11 月 7 日期刊 90 篇，11 月 8 日期刊 18 篇，11 月 9 日 arXiv 154 篇及期刊 30 篇；周末 arXiv 按原调度跳过。所有目标报告评分失败数为 0，原先成功的 82 篇评分保持不变，报告日期及汇总/精选计数已核验。
+- 新增离线回归测试及 `docs/REPORT_BACKFILL.md`，覆盖超时/限流恢复、权限错误、原评分保留、日期与条目数保护、备份、聚合、持久化续跑及 Cron runtime 传递。API 密钥、运行日志、报告、检查点、快照和备份均不纳入 Git。
+- 验证：50 项针对性离线测试通过，涵盖 report backfill、Web/Cron launcher 与 runtime configuration；`git diff --check` 通过。未重新部署服务器版本。

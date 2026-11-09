@@ -126,16 +126,27 @@ Logs are appended to:
 Run every day at 10:00 China time. The server and Cron use `Asia/Shanghai`:
 
 ```cron
-0 10 * * * /usr/bin/bash /data/zmr/projects/labAgent_Server/scripts/run_daily_report.sh
+0 10 * * * LABAGENT_ENV_FILE=/data/zmr/projects/labagent_runtime/labagent.env /usr/bin/bash /data/zmr/projects/labAgent_Server/scripts/run_daily_report.sh
 ```
 
 If cron cannot find conda, use `CONDA_EXE` inline:
 
 ```cron
-0 10 * * * CONDA_EXE=/home/USER/miniconda3/bin/conda /usr/bin/bash /data/zmr/projects/labAgent_Server/scripts/run_daily_report.sh
+0 10 * * * LABAGENT_ENV_FILE=/data/zmr/projects/labagent_runtime/labagent.env CONDA_EXE=/home/zmr/miniforge3/bin/conda /usr/bin/bash /data/zmr/projects/labAgent_Server/scripts/run_daily_report.sh
 ```
 
-The script sets `TZ=Asia/Shanghai`; code also reads `DEFAULT_TIMEZONE=Asia/Shanghai` from `.env`.
+The script defaults `LABAGENT_ENV_FILE` to the canonical server runtime file
+above and preserves an explicitly selected override. Cron does not inherit the
+Web service's environment. The script sets `TZ=Asia/Shanghai`; application code
+reads `DEFAULT_TIMEZONE` from the selected runtime file.
+
+Both scoring and chat use `DeepSeek-V4.1-Flash` in
+`lab_agent/config/models.json`. Keep model-name changes committed in the release
+source so a later deployment cannot restore obsolete model names. API keys stay
+in the server-only runtime file.
+
+For repairing saved scores or recovering missing dated reports, see
+[`docs/REPORT_BACKFILL.md`](docs/REPORT_BACKFILL.md).
 
 ## Web App By IP And Port
 

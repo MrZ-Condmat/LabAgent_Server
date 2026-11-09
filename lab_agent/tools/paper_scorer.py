@@ -39,8 +39,8 @@ class PaperScorer:
                 models_config = json.load(f)
                 return models_config.get('arxivFilterModel', {})
         except FileNotFoundError:
-            self.logger.warning(f"Models config not found at {config_path}, using DeepSeek-V4-Flash")
-            return {"name": "DeepSeek-V4-Flash", "provider": "deepseek"}
+            self.logger.warning(f"Models config not found at {config_path}, using DeepSeek-V4.1-Flash")
+            return {"name": "DeepSeek-V4.1-Flash", "provider": "deepseek"}
     
     def _load_prompt_template(self) -> str:
         prompt_path = os.path.join(
@@ -127,7 +127,7 @@ Subjects: {paper.get('subjects', 'N/A')}
         
         try:
             print(f"[DEBUG] Making DeepSeek scoring API call...")
-            model_name = self.model_config.get('name', 'DeepSeek-V4-Flash')
+            model_name = self.model_config.get('name', 'DeepSeek-V4.1-Flash')
             response = self.client.chat.completions.create(
                 model=model_name,
                 messages=[

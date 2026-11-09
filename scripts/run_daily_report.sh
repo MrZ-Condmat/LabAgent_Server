@@ -6,6 +6,7 @@ CONDA_ENV_NAME="${LABAGENT_CONDA_ENV:-labagent_server}"
 cd "$PROJECT_ROOT"
 
 export LABAGENT_PROJECT_ROOT="$PROJECT_ROOT"
+export LABAGENT_ENV_FILE="${LABAGENT_ENV_FILE:-/data/zmr/projects/labagent_runtime/labagent.env}"
 export TZ="Asia/Shanghai"
 
 find_conda() {
@@ -17,7 +18,7 @@ find_conda() {
     command -v conda
     return 0
   fi
-  for candidate in "$HOME/miniconda3/bin/conda" "$HOME/anaconda3/bin/conda" "/opt/conda/bin/conda"; do
+  for candidate in "$HOME/miniforge3/bin/conda" "$HOME/miniconda3/bin/conda" "$HOME/anaconda3/bin/conda" "/opt/conda/bin/conda"; do
     if [[ -x "$candidate" ]]; then
       echo "$candidate"
       return 0

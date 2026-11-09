@@ -76,6 +76,52 @@ fi
         assert "args=run --no-capture-output -n labagent_server python -m streamlit run" in result.stdout
 
 
+@pytest.mark.parametrize("mode", ["default", "explicit", "miniforge"])
+def test_daily_runner_passes_persistent_runtime_file_to_cron_child(tmp_path, mode):
+    bash = _bash_executable()
+    if bash is None:
+        pytest.skip("Bash is unavailable")
+
+    def shell_path(path):
+        value = path.resolve().as_posix()
+        return f"/{value[0].lower()}{value[2:]}" if os.name == "nt" else value
+
+    project = tmp_path / "project"
+    project.mkdir()
+    home = tmp_path / "home"
+    conda = home / "miniforge3/bin/conda" if mode == "miniforge" else tmp_path / "conda"
+    conda.parent.mkdir(parents=True, exist_ok=True)
+    conda.write_text(
+        '#!/bin/sh\nprintf "runtime=%s\\nargs=%s\\n" "$LABAGENT_ENV_FILE" "$*"\n',
+        encoding="utf-8",
+    )
+    environment = {
+        **os.environ,
+        "HOME": shell_path(home),
+        "PATH": "/usr/bin:/bin",
+        "LABAGENT_PROJECT_ROOT": shell_path(project),
+        "TEST_CONDA": shell_path(conda),
+        "TEST_RUNNER": shell_path(ROOT / "scripts/run_daily_report.sh"),
+    }
+    environment.pop("LABAGENT_CONDA_ENV", None)
+    environment.pop("LABAGENT_ENV_FILE", None)
+    environment.pop("CONDA_EXE", None)
+    if mode != "miniforge":
+        environment["CONDA_EXE"] = shell_path(conda)
+    expected = "/data/zmr/projects/labagent_runtime/labagent.env"
+    if mode == "explicit":
+        expected = shell_path(tmp_path / "override.env")
+        environment["LABAGENT_ENV_FILE"] = expected
+    result = subprocess.run(
+        [bash, "-c", 'chmod +x "$TEST_CONDA"; exec bash "$TEST_RUNNER"'],
+        cwd=ROOT, env=environment, text=True, capture_output=True, timeout=20, check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    log = (project / "logs/daily_report.log").read_text(encoding="utf-8")
+    assert f"runtime={expected}" in log
+    assert "args=run -n labagent_server python scripts/generate_daily_report.py --skip-weekends" in log
+
+
 def test_web_runner_strips_crlf_from_env_host_and_port():
     bash = _bash_executable()
     if bash is None:

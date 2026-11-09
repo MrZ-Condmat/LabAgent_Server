@@ -112,6 +112,14 @@ Otherwise FastAPI can create a session that Streamlit cannot validate. Daily
 report processes should use the same file so database, LLM, timezone, and path
 configuration remain consistent.
 
+`scripts/run_daily_report.sh` defaults `LABAGENT_ENV_FILE` to
+`/data/zmr/projects/labagent_runtime/labagent.env` when it has not been supplied.
+An explicit override is preserved. Put the same variable directly in the Cron
+entry as documented in `SERVER_README.md`; Cron does not inherit environment
+variables from the Web service or an interactive SSH session. Release directories
+do not contain `.env`, so relying on that fallback prevents scheduled reports
+from initializing their scoring client.
+
 `scripts/run_web_app.sh` resolves `STREAMLIT_HOST` and `STREAMLIT_PORT` through
 the same Python `Config` loader before starting Streamlit. It does not source
 the env file as shell code. FastAPI request dependencies and the daily report

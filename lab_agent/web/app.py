@@ -961,7 +961,7 @@ def load_overview_model_config(config: Config) -> Dict[str, Any]:
         }
     except Exception:
         return {
-            "Chat Model": "DeepSeek-V4-Pro",
+            "Chat Model": "DeepSeek-V4.1-Flash",
             "DeepSeek Base URL": getattr(config, "deepseek_base_url", os.getenv("DEEPSEEK_BASE_URL", "https://llmapi.paratera.com")),
             "Debug Mode": config.debug,
             "Log Level": config.log_level,
@@ -1632,13 +1632,13 @@ def load_overview_chat_model_config() -> Dict[str, Any]:
         with open(models_path, "r", encoding="utf-8") as f:
             models_data = json.load(f)
         return models_data.get("chatModel", {
-            "name": "DeepSeek-V4-Pro",
+            "name": "DeepSeek-V4.1-Flash",
             "maxTokens": 1500,
             "temperature": 0.3,
         })
     except Exception:
         return {
-            "name": "DeepSeek-V4-Pro",
+            "name": "DeepSeek-V4.1-Flash",
             "maxTokens": 1500,
             "temperature": 0.3,
         }
@@ -1680,7 +1680,7 @@ def deepseek_assistant_interface(current_user: CurrentUser):
     model_config = load_overview_chat_model_config()
     chat_settings = get_deepseek_chat_settings()
     st.subheader("Lab Assistant")
-    st.caption(f"Research and lab planning assistant - {model_config.get('name', 'DeepSeek-V4-Pro')}")
+    st.caption(f"Research and lab planning assistant - {model_config.get('name', 'DeepSeek-V4.1-Flash')}")
 
     store, conversation, messages = select_workspace(
         current_user, ConversationType.OVERVIEW, "overview_active_conversation_id"
@@ -1711,7 +1711,7 @@ def deepseek_assistant_interface(current_user: CurrentUser):
                         max_retries=0,
                     )
                     response = client.chat.completions.create(
-                        model=model_config.get("name", "DeepSeek-V4-Pro"),
+                        model=model_config.get("name", "DeepSeek-V4.1-Flash"),
                         messages=runtime_messages,
                         max_tokens=model_config.get("maxTokens", 1500),
                         temperature=model_config.get("temperature", 0.3),

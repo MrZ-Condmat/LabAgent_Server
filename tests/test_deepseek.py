@@ -10,7 +10,7 @@ with open("lab_agent/config/models.json", "r", encoding="utf-8") as f:
     model_config = json.load(f).get("chatModel", {})
 
 api_key = os.getenv("DEEPSEEK_CHAT_API_KEY")
-model_name = model_config.get("name", "DeepSeek-V4-Pro")
+model_name = model_config.get("name", "DeepSeek-V4.1-Flash")
 
 print("Step 1: API key loaded:", bool(api_key))
 print("Step 2: Creating client...")

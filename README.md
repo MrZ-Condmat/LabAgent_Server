@@ -44,8 +44,8 @@ DEFAULT_TIMEZONE=Asia/Shanghai
 
 Model names and token settings live in `lab_agent/config/models.json`:
 
-- `arxivFilterModel`: scoring/filtering model, currently `DeepSeek-V4-Flash`.
-- `chatModel`: chat model, currently `DeepSeek-V4-Pro`.
+- `arxivFilterModel`: scoring/filtering model, currently `DeepSeek-V4.1-Flash`.
+- `chatModel`: chat model, currently `DeepSeek-V4.1-Flash`.
 
 Journal RSS feeds live in `lab_agent/config/journal_feeds.json`.
 

@@ -1,13 +1,13 @@
 {
   "arxivFilterModel": {
-    "name": "DeepSeek-V4-Flash",
+    "name": "DeepSeek-V4.1-Flash",
     "provider": "deepseek",
     "api_type": "chat_completions",
     "description": "Model used for scoring and filtering arXiv papers",
     "purpose": "paper_scoring"
   },
   "chatModel": {
-    "name": "DeepSeek-V4-Pro",
+    "name": "DeepSeek-V4.1-Flash",
     "provider": "deepseek",
     "api_type": "chat_completions",
     "description": "Model used for chatting about ArXiv papers",

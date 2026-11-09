@@ -51,14 +51,14 @@ class ArxivChat:
             with open(config_path, 'r', encoding='utf-8') as f:
                 config = json.load(f)
                 return config.get('chatModel', {
-                    'name': 'DeepSeek-V4-Pro',
+                    'name': 'DeepSeek-V4.1-Flash',
                     'maxTokens': 1500,
                     'temperature': 0.3
                 })
         except FileNotFoundError:
             self.logger.error(f"Model config not found at {config_path}")
             return {
-                'name': 'DeepSeek-V4-Pro',
+                'name': 'DeepSeek-V4.1-Flash',
                 'maxTokens': 1500,
                 'temperature': 0.3
             }
@@ -145,7 +145,7 @@ class ArxivChat:
             })
 
             response = self.client.chat.completions.create(
-                model=self.model_config.get('name', 'DeepSeek-V4-Pro'),
+                model=self.model_config.get('name', 'DeepSeek-V4.1-Flash'),
                 messages=self.conversation_history,
                 max_tokens=self.model_config.get('maxTokens', 1500),
                 temperature=self.model_config.get('temperature', 0.3)
