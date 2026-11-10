@@ -938,3 +938,11 @@
 - 新增登录后共享的 Weekly/Monthly Reports 页面、Overview 快捷入口、周期选择、来源/关键词筛选、分页、摘要及下载；仅 admin 可补生成/重建历史周期。
 - 新增日期/去重/覆盖率/调度/权限/Streamlit 页面离线测试及 PERIODIC_REPORTS.md。只在本地实现和测试，不部署服务器、不 push、不发送真实邮件。
 - 验证：周期报告/告警/补跑专项 49 项通过；完整离线测试 382 项通过、48 项 integration 按标记排除；compileall、git diff --check 通过。
+
+## 2026-11-10 Priority 3 周报/月报服务器发布
+
+- 将功能提交 f86bcc8577dcc6f32d57d3da7694b585be6c5c61 stage 并激活为 20261110_145416_f86bcc8，previous 保留 20261110_141903_6acf611；runtime configuration、数据库 readiness、共享报告链接及 deployed revision 核对通过。没有执行 migration、重新评分或发送邮件。
+- 从现有日报生成首批历史报告：2026-10-31 至 2026-11-06 周报含 68 篇唯一 Priority 3（ArXiv 57、Journal 11，去除 4 次重复）；2026-10 月报含 195 篇（ArXiv 170、Journal 25，去除 22 次重复），JSON/HTML 均已保存。
+- 周报有 4 个不完整来源日，月报有 5 个不完整来源日及 2 个缺失来源日；已明确标记 coverage incomplete，不将历史缺失视为完整统计，也未修改原日报。
+- 唯一日报 Cron 保持北京时间 10:00，仍使用 canonical 项目路径。SSH 无免密码 sudo，Auth/Web 重启已交由用户在服务器终端执行；记录本条时两个进程仍运行上一 release，因此新页面的实际进程加载及重启后 HTTP 验收待完成。
+- 功能实现已通过完整离线测试 382 项（48 项 integration 排除）及静态检查；本次仅发布和追加运维记录。
