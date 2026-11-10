@@ -910,3 +910,9 @@
 - 新增 SCORING_FAILURE_NOTIFY_ENABLED（默认 true，可设 false 关闭）、运维说明及离线测试。只做本地代码与 mock 验证，不发送真实邮件，不调用 LLM，不部署服务器。
 - 修正过时的 Git archive 回归断言：rescore 工具已在前序补跑提交中纳入 Git，测试改为校验 archive 文件集合严格等于 HEAD tracked files；未修改该工具。
 - 验证：通知/SMTP/部署/补跑专项 50 项通过；完整离线测试 342 项通过、48 项 integration 按标记排除；compileall、git diff --check 通过。没有发送真实邮件或执行真实评分。
+
+## 2026-11-10 评分失败通知服务器发布与 SMTP 验收
+
+- 将功能提交 `8931272e2b82ceff3b1c599cbc265d854134023c` stage 并激活为 `20261110_135542_8931272`，保留前一 release 供回滚；配置验证、编译及数据库 readiness 检查通过，没有执行 migration 或真实评分。
+- 使用服务器现有 SMTP 向 SMTP_FROM 发送一封带 `[TEST]` 标记的模拟评分通知，SMTP 确认接受；独立临时目录验证同日报日期去重，未占用或修改真实通知状态。未记录真实邮箱、密码或其他凭据。
+- 由用户在服务器手动重启 Auth/Web；随后通过 SSH 只读核实两个服务均 active、实际进程工作目录均为新 release、HTTP/release verification 通过，通知开关为 true，唯一日报 Cron 仍引用 canonical compatibility path。
