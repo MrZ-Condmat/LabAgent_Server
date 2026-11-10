@@ -946,3 +946,9 @@
 - 周报有 4 个不完整来源日，月报有 5 个不完整来源日及 2 个缺失来源日；已明确标记 coverage incomplete，不将历史缺失视为完整统计，也未修改原日报。
 - 唯一日报 Cron 保持北京时间 10:00，仍使用 canonical 项目路径。SSH 无免密码 sudo，Auth/Web 重启已交由用户在服务器终端执行；记录本条时两个进程仍运行上一 release，因此新页面的实际进程加载及重启后 HTTP 验收待完成。
 - 功能实现已通过完整离线测试 382 项（48 项 integration 排除）及静态检查；本次仅发布和追加运维记录。
+
+## 2026-11-11 Priority 3 周报/月报重启后验收
+
+- 用户在服务器手动重启 Auth/Web 后，只读核验两个 systemd 服务均 active，实际进程 cwd 均指向 20261110_145416_f86bcc8；功能 revision 与 manifest/deployed_revision 均为 f86bcc8577dcc6f32d57d3da7694b585be6c5c61。
+- release verification 通过，包括 Auth/Web HTTP health、canonical/current 路径及共享 reports/logs 链接一致性。首批周报 68 篇、10 月月报 195 篇，均仅含 Priority 3，JSON/HTML 文件存在，历史来源不完整提示保持。
+- 本次未调用 LLM、发送邮件、重新生成报告或修改数据库；未进行浏览器登录页面人工验收，也未将后续周五/月初定时运行视为已经验证。
