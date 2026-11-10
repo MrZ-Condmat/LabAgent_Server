@@ -924,3 +924,9 @@
 - 按官方思考 API 说明省略无效的 temperature 参数；文档区分模型卡推荐 temperature=1.0 与思考托管 API 的忽略行为，并说明第三方透传、平台默认上限、超时计费及高预算风险。
 - 新增离线 SDK 请求体及边界测试、MODEL_REASONING_SETTINGS.md。未调用真实 LLM，未修改或部署服务器，未 push。
 - 验证：推理/评分告警/补跑专项 37 项通过；完整离线测试 356 项通过，48 项 integration 按标记排除；compileall、git diff --check 通过。
+
+## 2026-11-10 思考配置服务器发布与真实评分预算测试
+
+- 将 `6acf61147ae1b742d9b1a0e7c51b7a929c2241a4` stage/激活为 `20261110_141903_6acf611`，用户人工重启后确认 Auth/Web active、进程 cwd 为新 release，HTTP/release verification 通过。评分 high/16384，聊天 max/省略 max_tokens，两者均不传 temperature。
+- 使用服务器实际 API 和提示词，对现有当日日报按摘要长度抽样的 ArXiv 5 篇、Journal 5 篇逐篇测试，每篇一次无重试。10/10 评分可解析，finish_reason 均为 stop，无截断；completion 139–2306、reasoning 16–2146，合计 completion 7496，最长耗时 22.65 秒。
+- 最高输出约占 16K 的 14.1%，这些样本连原 5000 也未触顶；保留 16K 余量，不继续增加或取消上限，不宣称小样本可保证未来所有文章。未修改任何已存报告、评分或数据库，未发送通知邮件；用量统计单独记录在服务器 shared logs，未保存凭据或思考原文。
