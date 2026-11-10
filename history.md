@@ -916,3 +916,11 @@
 - 将功能提交 `8931272e2b82ceff3b1c599cbc265d854134023c` stage 并激活为 `20261110_135542_8931272`，保留前一 release 供回滚；配置验证、编译及数据库 readiness 检查通过，没有执行 migration 或真实评分。
 - 使用服务器现有 SMTP 向 SMTP_FROM 发送一封带 `[TEST]` 标记的模拟评分通知，SMTP 确认接受；独立临时目录验证同日报日期去重，未占用或修改真实通知状态。未记录真实邮箱、密码或其他凭据。
 - 由用户在服务器手动重启 Auth/Web；随后通过 SSH 只读核实两个服务均 active、实际进程工作目录均为新 release、HTTP/release verification 通过，通知开关为 true，唯一日报 Cron 仍引用 canonical compatibility path。
+
+## 2026-11-10 显式模型思考程度及输出预算
+
+- 评分显式设置 reasoning_effort=high，Overview/ArXiv/Journal 聊天设置 max，均显式启用 thinking；聊天移除 max_tokens，包括旧配置及 fallback 中的隐藏限制。
+- 评分保留可配置预算并从 5000 调整为 16384；长度截断判定为失败并进入既有通知，不以同一预算自动重试。保留原有 60 秒 timeout、其他错误最多两次尝试和 SDK 零自动重试。
+- 按官方思考 API 说明省略无效的 temperature 参数；文档区分模型卡推荐 temperature=1.0 与思考托管 API 的忽略行为，并说明第三方透传、平台默认上限、超时计费及高预算风险。
+- 新增离线 SDK 请求体及边界测试、MODEL_REASONING_SETTINGS.md。未调用真实 LLM，未修改或部署服务器，未 push。
+- 验证：推理/评分告警/补跑专项 37 项通过；完整离线测试 356 项通过，48 项 integration 按标记排除；compileall、git diff --check 通过。

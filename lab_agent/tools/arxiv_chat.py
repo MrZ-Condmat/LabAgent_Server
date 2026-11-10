@@ -4,6 +4,7 @@ import os
 from typing import List, Dict, Optional
 from openai import OpenAI
 from ..utils import Config
+from ..utils.model_requests import thinking_request_options
 
 
 class ArxivChat:
@@ -52,15 +53,13 @@ class ArxivChat:
                 config = json.load(f)
                 return config.get('chatModel', {
                     'name': 'DeepSeek-V4.1-Flash',
-                    'maxTokens': 1500,
-                    'temperature': 0.3
+                    'reasoningEffort': 'max'
                 })
         except FileNotFoundError:
             self.logger.error(f"Model config not found at {config_path}")
             return {
                 'name': 'DeepSeek-V4.1-Flash',
-                'maxTokens': 1500,
-                'temperature': 0.3
+                'reasoningEffort': 'max'
             }
     
     def _default_prompt(self) -> str:
@@ -147,8 +146,7 @@ class ArxivChat:
             response = self.client.chat.completions.create(
                 model=self.model_config.get('name', 'DeepSeek-V4.1-Flash'),
                 messages=self.conversation_history,
-                max_tokens=self.model_config.get('maxTokens', 1500),
-                temperature=self.model_config.get('temperature', 0.3)
+                **thinking_request_options(self.model_config, scoring=False)
             )
             assistant_message = response.choices[0].message.content
 

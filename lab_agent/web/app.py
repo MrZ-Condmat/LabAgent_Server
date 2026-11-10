@@ -13,6 +13,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
 from lab_agent.main import LabAgent
 from lab_agent.utils import Config, load_project_dotenv, now, project_path_str, today_str
+from lab_agent.utils.model_requests import thinking_request_options
 from lab_agent.agents.arxiv_daily_agent import ArxivDailyAgent
 from lab_agent.agents.journal_daily_agent import JournalDailyAgent
 from lab_agent.tools.arxiv_chat import ArxivChat
@@ -1633,14 +1634,12 @@ def load_overview_chat_model_config() -> Dict[str, Any]:
             models_data = json.load(f)
         return models_data.get("chatModel", {
             "name": "DeepSeek-V4.1-Flash",
-            "maxTokens": 1500,
-            "temperature": 0.3,
+            "reasoningEffort": "max",
         })
     except Exception:
         return {
             "name": "DeepSeek-V4.1-Flash",
-            "maxTokens": 1500,
-            "temperature": 0.3,
+            "reasoningEffort": "max",
         }
 
 
@@ -1713,8 +1712,7 @@ def deepseek_assistant_interface(current_user: CurrentUser):
                     response = client.chat.completions.create(
                         model=model_config.get("name", "DeepSeek-V4.1-Flash"),
                         messages=runtime_messages,
-                        max_tokens=model_config.get("maxTokens", 1500),
-                        temperature=model_config.get("temperature", 0.3),
+                        **thinking_request_options(model_config, scoring=False),
                     )
                 return response.choices[0].message.content
 

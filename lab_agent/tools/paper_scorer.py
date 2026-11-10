@@ -6,6 +6,11 @@ from typing import List, Dict
 from openai import OpenAI
 from ..utils import Config
 from ..utils.scoring_notifications import record_scoring_failure
+from ..utils.model_requests import thinking_request_options
+
+
+class ScoringTokenLimitError(RuntimeError):
+    """A bounded scoring request exhausted its output budget."""
 
 
 class PaperScorer:
@@ -107,6 +112,9 @@ class PaperScorer:
                 if attempt > 1:
                     print(f"[DEBUG] Retrying paper scoring attempt {attempt}/{max_attempts}...")
                 return self._score_single_paper(paper)
+            except ScoringTokenLimitError:
+                # Repeating an identical exhausted budget just spends it again.
+                raise
             except Exception as e:
                 last_error = e
                 self.logger.warning(
@@ -138,12 +146,15 @@ Subjects: {paper.get('subjects', 'N/A')}
                     {"role": "system", "content": "You are an expert research paper evaluator for a condensed matter physics laboratory focused on cuprate superconductors, nickelate superconductors, strongly correlated electron systems, STM/STS, STEM/EELS, electron ptychography, graphene-based correlated systems, and quantum anomalous Hall physics."},
                     {"role": "user", "content": prompt}
                 ],
-                max_tokens=5000,
-                temperature=0.1
+                **thinking_request_options(self.model_config, scoring=True)
             )
 
             print(f"[DEBUG] DeepSeek scoring API call successful")
+            if response.choices[0].finish_reason == "length":
+                raise ScoringTokenLimitError("Scoring response exceeded the configured token budget")
             response_text = response.choices[0].message.content
+            if not isinstance(response_text, str) or not response_text.strip():
+                raise ValueError("Scoring response contains no final answer")
             print(f"[DEBUG] Response: {response_text[:100]}...")
             return self._parse_response(response_text)
 
