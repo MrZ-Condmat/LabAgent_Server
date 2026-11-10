@@ -263,7 +263,7 @@ def test_legacy_mutating_options_fail_before_network_commands():
         assert "throw" in source[guard:source.index("}", guard)]
 
 
-def test_git_head_archive_excludes_intentional_untracked_file(tmp_path):
+def test_git_head_archive_contains_exactly_committed_files(tmp_path):
     archive = tmp_path / "head.tar"
     result = subprocess.run(
         ["git", "archive", "--format=tar", f"--output={archive}", "HEAD"],
@@ -281,5 +281,13 @@ def test_git_head_archive_excludes_intentional_untracked_file(tmp_path):
         check=False,
     )
     assert listing.returncode == 0, listing.stderr
-    assert "scripts/rescore_saved_reports.py" not in listing.stdout.splitlines()
+    tracked = subprocess.run(
+        ["git", "ls-tree", "-r", "--name-only", "HEAD"], cwd=ROOT,
+        text=True, capture_output=True, check=False,
+    )
+    assert tracked.returncode == 0, tracked.stderr
+    # rescore is now committed; archive membership must follow HEAD rather than
+    # an outdated assumption about one particular file being untracked.
+    archived_files = {name for name in listing.stdout.splitlines() if not name.endswith("/")}
+    assert archived_files == set(tracked.stdout.splitlines())
     assert ".env" not in listing.stdout.splitlines()

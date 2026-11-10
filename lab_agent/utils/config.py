@@ -74,6 +74,9 @@ class Config:
         self.smtp_from_name = os.getenv("SMTP_FROM_NAME", "LabAgent")
         self.smtp_use_ssl = os.getenv("SMTP_USE_SSL", "true").strip().lower() in {"1", "true", "yes", "on"}
         self.smtp_timeout_seconds = int(os.getenv("SMTP_TIMEOUT_SECONDS", "20"))
+        self.scoring_failure_notify_enabled = os.getenv(
+            "SCORING_FAILURE_NOTIFY_ENABLED", "true"
+        ).strip().lower() in {"1", "true", "yes", "on"}
 
         # External API settings
         self.arxiv_base_url = os.getenv("ARXIV_BASE_URL", "http://export.arxiv.org/api/query")

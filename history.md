@@ -902,3 +902,11 @@
 - 服务器补跑已于北京时间 2026-11-09 23:41 完成：11 月 7 日期刊 90 篇，11 月 8 日期刊 18 篇，11 月 9 日 arXiv 154 篇及期刊 30 篇；周末 arXiv 按原调度跳过。所有目标报告评分失败数为 0，原先成功的 82 篇评分保持不变，报告日期及汇总/精选计数已核验。
 - 新增离线回归测试及 `docs/REPORT_BACKFILL.md`，覆盖超时/限流恢复、权限错误、原评分保留、日期与条目数保护、备份、聚合、持久化续跑及 Cron runtime 传递。API 密钥、运行日志、报告、检查点、快照和备份均不纳入 Git。
 - 验证：50 项针对性离线测试通过，涵盖 report backfill、Web/Cron launcher 与 runtime configuration；`git diff --check` 通过。未重新部署服务器版本。
+
+## 2026-11-10 每日评分失败 SMTP 汇总通知
+
+- 每次定时日报收集 ArXiv/Journal 重试耗尽及无法解析的评分失败，结束后复用既有 SMTP_SSL 发信模块，将汇总邮件发送至服务器配置的 SMTP_FROM；正常低分和重试成功不告警。
+- 邮件包含日期、来源、失败数和最多 20 篇公开文章信息，不包含原始 API 异常或凭据。发送失败不改变日报结果；共享 logs 中的按日期标记及排他 reservation 避免重复运行/并发重复发送。
+- 新增 SCORING_FAILURE_NOTIFY_ENABLED（默认 true，可设 false 关闭）、运维说明及离线测试。只做本地代码与 mock 验证，不发送真实邮件，不调用 LLM，不部署服务器。
+- 修正过时的 Git archive 回归断言：rescore 工具已在前序补跑提交中纳入 Git，测试改为校验 archive 文件集合严格等于 HEAD tracked files；未修改该工具。
+- 验证：通知/SMTP/部署/补跑专项 50 项通过；完整离线测试 342 项通过、48 项 integration 按标记排除；compileall、git diff --check 通过。没有发送真实邮件或执行真实评分。

@@ -5,6 +5,7 @@ import time
 from typing import List, Dict
 from openai import OpenAI
 from ..utils import Config
+from ..utils.scoring_notifications import record_scoring_failure
 
 
 class PaperScorer:
@@ -74,12 +75,15 @@ class PaperScorer:
             try:
                 print(f"[DEBUG] Scoring paper {i+1}/{len(papers)}: {paper.get('title', 'No title')[:50]}...")
                 score_data = self._score_single_paper_with_retry(paper)
+                if score_data.get('reason') == 'Unable to parse response':
+                    record_scoring_failure(paper, 'UnparseableResponse')
                 paper_with_score = paper.copy()
                 paper_with_score.update(score_data)
                 scored_papers.append(paper_with_score)
                 print(f"[DEBUG] Paper scored: {score_data.get('score', 'N/A')} - {score_data.get('reason', 'N/A')}")
                 
             except Exception as e:
+                record_scoring_failure(paper, type(e).__name__)
                 self.logger.error(f"Error scoring paper {paper.get('id', 'unknown')}: {e}")
                 print(f"[DEBUG] Scoring error for paper {i+1}: {e}")
                 # Add paper with default score if scoring fails

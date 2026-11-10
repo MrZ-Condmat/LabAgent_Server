@@ -56,6 +56,24 @@ def test_verified_tls_handshake_message_and_close():
     manager.__exit__.assert_called_once()
 
 
+def test_operational_notification_uses_existing_verified_transport():
+    smtp = Mock()
+    smtp.send_message.return_value = {}
+    manager = Mock()
+    manager.__enter__ = Mock(return_value=smtp)
+    manager.__exit__ = Mock(return_value=False)
+    with patch("lab_agent.auth.smtp_sender.smtplib.SMTP_SSL", return_value=manager) as connect:
+        SmtpEmailSender(settings()).send_notification(
+            recipient="sender@mails.tsinghua.edu.cn", subject="LabAgent scoring failures", body="2 failures\n")
+    message = smtp.send_message.call_args.args[0]
+    assert message["Subject"] == "LabAgent scoring failures"
+    assert message["To"] == "sender@mails.tsinghua.edu.cn"
+    assert "2 failures" in message.get_content()
+    assert connect.call_args.kwargs["context"].verify_mode == ssl.CERT_REQUIRED
+    smtp.login.assert_called_once()
+    manager.__exit__.assert_called_once()
+
+
 def test_authentication_error_has_no_credentials():
     smtp = Mock()
     smtp.login.side_effect = smtplib.SMTPAuthenticationError(535, b"authentication failed")

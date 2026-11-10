@@ -19,6 +19,9 @@ from lab_agent.agents.arxiv_daily_agent import ArxivDailyAgent  # noqa: E402
 from lab_agent.agents.journal_daily_agent import JournalDailyAgent  # noqa: E402
 from lab_agent.tools.highlights_report_generator import HighlightsReportGenerator  # noqa: E402
 from lab_agent.utils import load_project_dotenv, now, project_path_str, today_str  # noqa: E402
+from lab_agent.utils.scoring_notifications import (  # noqa: E402
+    collect_scoring_failures, scoring_source, notify_scoring_failures,
+)
 
 
 DEFAULT_ARXIV_URL = "https://arxiv.org/list/cond-mat/new"
@@ -130,8 +133,15 @@ def generate_highlights_report(args: argparse.Namespace, report_date: str) -> bo
 
 async def run_once(args: argparse.Namespace) -> int:
     load_project_dotenv()
-
     report_date = args.date or today_str()
+    with collect_scoring_failures() as failures:
+        try:
+            return await _generate_reports(args, report_date)
+        finally:
+            notify_scoring_failures(failures, report_date)
+
+
+async def _generate_reports(args: argparse.Namespace, report_date: str) -> int:
     is_weekend = now().weekday() >= 5
 
     successes = []
@@ -139,10 +149,12 @@ async def run_once(args: argparse.Namespace) -> int:
         if args.skip_weekends and is_weekend:
             print(f"ArXiv no updates today ({report_date}); skipping ArXiv report generation.")
         else:
-            successes.append(await generate_arxiv_report(args, report_date))
+            with scoring_source("ArXiv"):
+                successes.append(await generate_arxiv_report(args, report_date))
 
     if not args.skip_journals:
-        successes.append(await generate_journal_reports(args, report_date))
+        with scoring_source("Journal"):
+            successes.append(await generate_journal_reports(args, report_date))
 
     if not args.skip_highlights:
         successes.append(generate_highlights_report(args, report_date))

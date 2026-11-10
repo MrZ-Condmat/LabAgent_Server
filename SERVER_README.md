@@ -1,5 +1,9 @@
 ﻿# LabAgent Server Deployment
 
+Daily scoring failures are emailed to the configured `SMTP_FROM` using the
+existing SMTP transport. See `docs/SCORING_FAILURE_NOTIFICATIONS.md` for counting,
+deduplication, configuration and troubleshooting.
+
 This folder is prepared for Linux deployment at:
 
 ```bash

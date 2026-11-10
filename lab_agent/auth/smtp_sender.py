@@ -62,6 +62,20 @@ class SmtpEmailSender:
             "If you did not request this code, you can ignore this email.\n"
         )
 
+        self._deliver(message)
+
+    def send_notification(self, *, recipient: str, subject: str, body: str) -> None:
+        """Deliver a plain-text operational notification with the same verified transport."""
+        if not _header_safe(recipient) or "@" not in recipient or not _header_safe(subject):
+            raise EmailDeliveryError("Unable to send notification email")
+        message = EmailMessage()
+        message["From"] = formataddr((self.config.smtp_from_name, self.config.smtp_from))
+        message["To"] = recipient
+        message["Subject"] = subject
+        message.set_content(body)
+        self._deliver(message)
+
+    def _deliver(self, message: EmailMessage) -> None:
         try:
             with smtplib.SMTP_SSL(
                 self.config.smtp_host,
