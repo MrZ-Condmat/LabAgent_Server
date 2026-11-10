@@ -28,6 +28,7 @@ from lab_agent.services.chat_conversations import model_history
 from lab_agent.web.chat_context import arxiv_context, journal_context
 from lab_agent.web.chat_ui import render_paper_chat, select_workspace
 from lab_agent.web.chat_reports import load_arxiv_papers, load_journal_papers
+from lab_agent.web.periodic_reports import periodic_reports_interface
 from openai import OpenAI
 
 nest_asyncio.apply()
@@ -36,6 +37,8 @@ NAV_ITEMS = [
     "Overview",
     "ArXiv Daily",
     "Journal Daily",
+    "Weekly Reports",
+    "Monthly Reports",
     "Database",
     "Logs",
 ]
@@ -473,6 +476,9 @@ def main():
         arxiv_daily_interface(current_user)
     elif active_page == "Journal Daily":
         journal_daily_interface(current_user)
+    elif active_page in {"Weekly Reports", "Monthly Reports"}:
+        render_page_header(active_page, "Priority 3 literature digests from ArXiv and journals.")
+        periodic_reports_interface("weekly" if active_page == "Weekly Reports" else "monthly", can_generate=is_admin(current_user))
     elif active_page == "Database":
         database_interface()
     elif active_page == "Logs":
@@ -1075,10 +1081,18 @@ def render_overview_status_lines(today: str, arxiv: Dict[str, Any], journal: Dic
         unsafe_allow_html=True,
     )
 
-    action_col, _ = st.columns([0.26, 0.74])
+    action_col, weekly_col, monthly_col = st.columns(3)
     with action_col:
         if st.button("Today's Highlights", key="overview_today_highlights", help="View today's combined Priority 3 highlights"):
             show_today_highlights(today)
+    with weekly_col:
+        if st.button("Weekly Reports", key="overview_weekly_reports"):
+            st.session_state.active_nav = "Weekly Reports"
+            st.rerun()
+    with monthly_col:
+        if st.button("Monthly Reports", key="overview_monthly_reports"):
+            st.session_state.active_nav = "Monthly Reports"
+            st.rerun()
 
 
 def show_today_highlights(today: str) -> None:

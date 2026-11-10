@@ -10,6 +10,11 @@ This folder is prepared for Linux deployment at:
 /data/zmr/projects/labAgent_Server
 ```
 
+Weekly and monthly Priority 3 digests reuse the existing daily Cron: Friday
+produces Saturday-through-Friday coverage, and day 1 produces the previous
+calendar month. Shared report pages include period selection, source/search
+filters, downloads and administrator-only rebuilding. See `docs/PERIODIC_REPORTS.md`.
+
 ## Persistent Beta PostgreSQL
 
 Long-term Beta PostgreSQL uses `compose.beta-postgres.yml`, the local

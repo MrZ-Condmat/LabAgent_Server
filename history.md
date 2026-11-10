@@ -930,3 +930,11 @@
 - 将 `6acf61147ae1b742d9b1a0e7c51b7a929c2241a4` stage/激活为 `20261110_141903_6acf611`，用户人工重启后确认 Auth/Web active、进程 cwd 为新 release，HTTP/release verification 通过。评分 high/16384，聊天 max/省略 max_tokens，两者均不传 temperature。
 - 使用服务器实际 API 和提示词，对现有当日日报按摘要长度抽样的 ArXiv 5 篇、Journal 5 篇逐篇测试，每篇一次无重试。10/10 评分可解析，finish_reason 均为 stop，无截断；completion 139–2306、reasoning 16–2146，合计 completion 7496，最长耗时 22.65 秒。
 - 最高输出约占 16K 的 14.1%，这些样本连原 5000 也未触顶；保留 16K 余量，不继续增加或取消上限，不宣称小样本可保证未来所有文章。未修改任何已存报告、评分或数据库，未发送通知邮件；用量统计单独记录在服务器 shared logs，未保存凭据或思考原文。
+
+## 2026-11-10 Priority 3 周报/月报与前端页面
+
+- 按用户确认的范围，每周五汇总上周六至本周五的来源日报，每月 1 日汇总上个月自然月，仅收录 ArXiv/Journal Priority 3；复用原摘要/评述，不调用 LLM 或修改原日报评分。
+- 新增周期汇总器、独立 CLI，以及现有日报 finally 中的到期触发。按文章标识去重并保留来源/日报日期；缺失、损坏及不完整来源明确标记，周末 ArXiv 跳过单独处理，报告存放于 shared reports 的 Weekly_reports/Monthly_reports。
+- 新增登录后共享的 Weekly/Monthly Reports 页面、Overview 快捷入口、周期选择、来源/关键词筛选、分页、摘要及下载；仅 admin 可补生成/重建历史周期。
+- 新增日期/去重/覆盖率/调度/权限/Streamlit 页面离线测试及 PERIODIC_REPORTS.md。只在本地实现和测试，不部署服务器、不 push、不发送真实邮件。
+- 验证：周期报告/告警/补跑专项 49 项通过；完整离线测试 382 项通过、48 项 integration 按标记排除；compileall、git diff --check 通过。

@@ -22,6 +22,7 @@ from lab_agent.utils import load_project_dotenv, now, project_path_str, today_st
 from lab_agent.utils.scoring_notifications import (  # noqa: E402
     collect_scoring_failures, scoring_source, notify_scoring_failures,
 )
+from scripts.generate_periodic_reports import generate_due_reports  # noqa: E402
 
 
 DEFAULT_ARXIV_URL = "https://arxiv.org/list/cond-mat/new"
@@ -136,9 +137,22 @@ async def run_once(args: argparse.Namespace) -> int:
     report_date = args.date or today_str()
     with collect_scoring_failures() as failures:
         try:
-            return await _generate_reports(args, report_date)
+            result = await _generate_reports(args, report_date)
         finally:
             notify_scoring_failures(failures, report_date)
+            periodic_ok = True
+            if not getattr(args, "skip_periodic_reports", False):
+                try:
+                    reports = generate_due_reports(
+                        report_date, reports_root=getattr(args, "journal_reports_base_dir", None),
+                        arxiv_reports_dir=getattr(args, "reports_dir", None),
+                        journal_reports_dir=getattr(args, "journal_summary_reports_dir", None),
+                    )
+                    periodic_ok = all(r["summary"]["coverage_complete"] for r in reports)
+                except (OSError, ValueError):
+                    print("Periodic report generation failed; check source reports and directory access.")
+                    periodic_ok = False
+        return 0 if result == 0 and periodic_ok else 1
 
 
 async def _generate_reports(args: argparse.Namespace, report_date: str) -> int:
@@ -168,6 +182,7 @@ async def _generate_reports(args: argparse.Namespace, report_date: str) -> int:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Generate one combined daily report run.")
+    parser.add_argument("--skip-periodic-reports", action="store_true", help="Skip automatic Friday/first-of-month Priority 3 digests.")
     parser.add_argument("--date", help="Report date in YYYY-MM-DD format. Defaults to today in DEFAULT_TIMEZONE.")
     parser.add_argument("--url", default=DEFAULT_ARXIV_URL, help="ArXiv list URL to scrape.")
     parser.add_argument("--reports-dir", default="reports/ArXiv_reports", help="Directory for ArXiv reports.")
